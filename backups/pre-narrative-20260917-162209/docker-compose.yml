@@ -1,0 +1,21 @@
+services:
+  salesdesk:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      SITE_PASSWORD_HASH: ${SITE_PASSWORD_HASH}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
+      SECRET_KEY: ${SECRET_KEY}
+      SECURE_COOKIES: ${SECURE_COOKIES:-false}
+      DATA_DIR: /data
+      # Ask box. Leave GEMINI_API_KEY unset to run with the built-in parser only.
+      ASK_AI_ENABLED: ${ASK_AI_ENABLED:-true}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+    volumes:
+      - salesdesk-data:/data
+    restart: unless-stopped
+
+volumes:
+  salesdesk-data:

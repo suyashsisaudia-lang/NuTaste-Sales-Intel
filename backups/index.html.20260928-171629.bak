@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>NuTaste Sales Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/brand.css">
+<link rel="preload" as="image" href="/static/brand/products/creamy-vanilla.jpg">
+<!-- Intro splash once per browser session (skipped for reduced motion). -->
+<script>try{if(!sessionStorage.getItem("nt-splash")&&!matchMedia("(prefers-reduced-motion: reduce)").matches)document.documentElement.classList.add("splash-on")}catch(e){}</script>
+<link rel="icon" type="image/png" href="/static/brand/nutaste-apple.png">
+</head>
+<body>
+<div class="splash" id="splash" aria-hidden="true">
+  <div class="splash-inner">
+    <span class="logo" role="img" aria-label="NuTaste"><span class="logo-apple"><img class="logo-body" src="/static/brand/nutaste-apple-hd.png" alt=""></span><img class="logo-word" src="/static/brand/nutaste-word.png" alt=""></span>
+    <div class="splash-bar"><i></i></div>
+    <div class="splash-tag">Sales Desk</div>
+  </div>
+</div>
+<div class="chrome" id="chrome">
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="logo brand-mark" role="img" aria-label="NuTaste">
+        <span class="logo-apple">
+          <img class="logo-body" src="/static/brand/nutaste-apple-hd.png" alt="">
+        </span>
+        <img class="logo-word" src="/static/brand/nutaste-word.png" alt="">
+      </span>
+      <span class="brand-sub">Receivables Desk</span>
+    </div>
+
+    <div class="picker" id="ar-picker-wrap">
+      <svg class="picker-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <circle cx="9" cy="9" r="5.5"></circle><path d="M13.5 13.5 17.5 17.5" stroke-linecap="round"></path>
+      </svg>
+      <input id="picker" class="picker-input" type="text" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="picker-list" placeholder="Search your name…" autocomplete="off">
+      <button id="picker-clear" class="picker-clear" aria-label="Clear selection" hidden>
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5.5 5.5l9 9m0-9l-9 9"></path></svg>
+      </button>
+      <div id="picker-list" class="picker-list" role="listbox" hidden=""></div>
+    </div>
+
+    <div class="picker" id="sec-picker-wrap" hidden="">
+      <svg class="picker-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+        <circle cx="9" cy="9" r="5.5"></circle><path d="M13.5 13.5 17.5 17.5" stroke-linecap="round"></path>
+      </svg>
+      <input id="sec-picker" class="picker-input" type="text" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="sec-picker-list" placeholder="Search your name…" autocomplete="off">
+      <button id="sec-picker-clear" class="picker-clear" aria-label="Clear selection" hidden>
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5.5 5.5l9 9m0-9l-9 9"></path></svg>
+      </button>
+      <div id="sec-picker-list" class="picker-list" role="listbox" hidden=""></div>
+    </div>
+
+    <label class="month-pick" id="sec-month-wrap" data-module-only="sec" hidden="">
+      <span class="month-pick-label">Month</span>
+      <select id="sec-month" class="month-pick-select"></select>
+    </label>
+
+    <a class="signout" href="/logout" title="Sign out">Sign out</a>
+    <div class="asof">Data as at<br><strong id="asof-date">—</strong></div>
+  </div>
+</header>
+
+<nav class="sectionbar" aria-label="Modules">
+  <div class="sectionbar-inner" role="tablist">
+    <button class="section-btn" role="tab" data-section="ar" aria-selected="true">Receivables</button>
+    <button class="section-btn" role="tab" data-section="sec" aria-selected="false">Secondary Sales</button>
+  </div>
+</nav>
+
+<nav class="tabbar" id="ar-tabbar" aria-label="Receivables views">
+  <div class="tabbar-inner" role="tablist">
+    <button class="tab" role="tab" data-view="overview" aria-selected="true">Overview</button>
+    <button class="tab" role="tab" data-view="report" aria-selected="false">Full report</button>
+    <button class="tab" role="tab" data-view="ask" aria-selected="false">Ask</button>
+  </div>
+</nav>
+
+<nav class="tabbar" id="sec-tabbar" aria-label="Secondary sales views" hidden="">
+  <div class="tabbar-inner" role="tablist">
+    <button class="tab sec-tab" role="tab" data-view="overview" aria-selected="true">Overview</button>
+    <button class="tab sec-tab" role="tab" data-view="activity" aria-selected="false">Activity detail</button>
+    <button class="tab sec-tab" role="tab" data-view="ask" aria-selected="false">Ask</button>
+  </div>
+</nav>
+</div>
+
+<main>
+ <section class="hero-strip" id="hero-strip" aria-label="Welcome">
+  <div class="hs-media" aria-hidden="true"></div>
+  <div class="hs-shade" aria-hidden="true"></div>
+  <div class="hs-copy">
+   <p class="hs-eyebrow"><span id="hs-module">Receivables Desk</span><span aria-hidden="true">·</span><span id="hs-date"></span></p>
+   <h1 class="hs-title"><span class="hs-greet" id="hs-greet">Welcome.</span><span class="hs-name" id="hs-name"></span></h1>
+   <p class="hs-sub" id="hs-sub">Search your name above to open your book.</p>
+  </div>
+  <div class="hs-product" aria-hidden="true"><span class="hs-p-tag"></span><span class="hs-p-name"></span></div>
+  <div class="hs-dots"></div>
+ </section>
+ <div id="ar-module">
+  <div id="empty" class="empty showcase">
+    <div class="sc-copy">
+      <div class="empty-mark" aria-hidden="true"><span class="logo-apple"><img class="logo-body" src="/static/brand/nutaste-apple-hd.png" alt=""></span></div>
+      <h2>Select your name to begin</h2>
+      <p>You'll see your outstanding balance, ageing breakdown, top customers and full invoice list.</p>
+      <button type="button" class="sc-cta" data-focus="picker"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="M13.5 13.5 17.5 17.5" stroke-linecap="round"></path></svg><span>Search your name</span></button>
+      <span class="sc-hint"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 16V4M5 9l5-5 5 5"></path></svg>or start typing in the search box at the top</span>
+    </div>
+    <div class="fan" aria-hidden="true"><div class="fan-stage">
+      <figure class="fan-card" style="--x:-62%;--r:-9deg;--d:.15s"><img src="/static/brand/products/creamy-vanilla-sm.jpg" alt="" decoding="async"><figcaption><span>Frappe</span>Creamy Vanilla</figcaption></figure>
+      <figure class="fan-card" style="--x:0%;--r:0deg;--d:.3s"><img src="/static/brand/products/choco-brownie-sm.jpg" alt="" decoding="async"><figcaption><span>Baking Premix</span>Choco Brownie</figcaption></figure>
+      <figure class="fan-card" style="--x:62%;--r:9deg;--d:.45s"><img src="/static/brand/products/cookie-sm.jpg" alt="" decoding="async"><figcaption><span>Topping</span>Cookie</figcaption></figure>
+    </div></div>
+  </div>
+
+  <div id="views" hidden>
+    <section id="view-overview" class="stack"></section>
+    <section id="view-report" class="stack" hidden=""></section>
+    <section id="view-ask" class="stack" hidden=""></section>
+  </div>
+ </div>
+
+ <div id="sec-module" hidden="">
+  <div id="sec-empty" class="empty showcase">
+    <div class="sc-copy">
+      <div class="empty-mark" aria-hidden="true"><span class="logo-apple"><img class="logo-body" src="/static/brand/nutaste-apple-hd.png" alt=""></span></div>
+      <h2>Select a name to begin</h2>
+      <p>See that person's visits, demos, leads, secondary sales, travel and expenses for <span id="sec-period">—</span>.</p>
+      <button type="button" class="sc-cta" data-focus="sec-picker"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle><path d="M13.5 13.5 17.5 17.5" stroke-linecap="round"></path></svg><span>Search your name</span></button>
+      <span class="sc-hint"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 16V4M5 9l5-5 5 5"></path></svg>or start typing in the search box at the top</span>
+    </div>
+    <div class="fan" aria-hidden="true"><div class="fan-stage">
+      <figure class="fan-card" style="--x:-62%;--r:-9deg;--d:.15s"><img src="/static/brand/products/lime-sm.jpg" alt="" decoding="async"><figcaption><span>Sprinkler</span>Lime</figcaption></figure>
+      <figure class="fan-card" style="--x:0%;--r:0deg;--d:.3s"><img src="/static/brand/products/numax-sm.jpg" alt="" decoding="async"><figcaption><span>Pre-marinade</span>Numax</figcaption></figure>
+      <figure class="fan-card" style="--x:62%;--r:9deg;--d:.45s"><img src="/static/brand/products/premium-aromat-sm.jpg" alt="" decoding="async"><figcaption><span>Flavour Enhancer</span>Premium Aromat</figcaption></figure>
+    </div></div>
+  </div>
+
+  <div id="sec-views" hidden>
+    <section id="sec-overview" class="stack"></section>
+    <section id="sec-activity" class="stack" hidden=""></section>
+    <section id="sec-ask" class="stack" hidden=""></section>
+  </div>
+ </div>
+</main>
+
+<section class="range" aria-label="The NuTaste range">
+  <div class="range-head">
+    <h2 class="range-title">The <b>NuTaste</b> range</h2>
+    <span class="range-note">Hover to pause</span>
+  </div>
+  <div class="range-viewport"><div class="range-track" id="range-track"></div></div>
+</section>
+<footer class="site-foot">
+  <span class="logo" role="img" aria-label="NuTaste"><span class="logo-apple"><img class="logo-body" src="/static/brand/nutaste-apple-hd.png" alt=""></span><img class="logo-word" src="/static/brand/nutaste-word.png" alt=""></span>
+  <div class="foot-booth"><img src="/static/brand/products/expo-booth.png" alt="NuTaste stand at an expo" loading="lazy"><span>Internal sales tool · figures from the latest uploaded extracts</span></div>
+</footer>
+
+<div id="tip" class="tip" role="status" aria-live="polite"></div>
+<!-- Datasets are served by the backend so an admin upload replaces them without a redeploy. -->
+<script src="/api/data/ar.js"></script>
+<script src="/api/data/sec.js{{ sec_query }}"></script>
+<!-- motion.js first, so it is already watching when the views first render. -->
+<script src="/static/brand.js"></script>
+<script src="/static/motion.js"></script>
+<script src="/static/receivables.js"></script>
+<script src="/static/secondary.js"></script>
+<script src="/static/switch.js"></script>
+</body>
+</html>

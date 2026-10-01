@@ -1,0 +1,14 @@
+{
+  "posting_date":    ["Posting Date"],
+  "customer_no":     ["Customer No", "Customer No.", "Customer Number"],
+  "customer_name":   ["Customer Name"],
+  "terms":           ["Payment terms", "Payment Terms", "Payment Terms Code"],
+  "salesperson":     ["Salesperson", "Salesperson Code", "Salesperson Name"],
+  "zone":            ["ZONE", "Zone"],
+  "document_type":   ["Document Type"],
+  "document_no":     ["Document No.", "Document No", "Document Number"],
+  "due_date":        ["Due Date"],
+  "posting_group":   ["Gen. Bus. Posting Grou", "Gen. Bus. Posting Group"],
+  "original_amount": ["Original Amount", "Original Amount ", "Original Amt."],
+  "balance":         ["Balance", "Remaining Amount", "Remaining Amt."]
+}

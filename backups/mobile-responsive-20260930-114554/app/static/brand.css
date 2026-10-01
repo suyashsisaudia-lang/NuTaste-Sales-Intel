@@ -1,0 +1,238 @@
+
+/* =====================================================================
+   BRAND SHOWCASE — product photography and showpiece motion.
+   Loaded after app.css. brand.js builds most of the markup these style.
+   ===================================================================== */
+
+/* ---------------------------------------------------------------- splash */
+/* Once-per-session intro. <head> adds .splash-on; brand.js lifts the curtain.
+   CSS also hides it after 2.8s, so a script failure can never trap anyone. */
+.splash { display: none; }
+.splash-on .splash {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center; cursor: pointer;
+  background:
+    radial-gradient(700px 500px at 50% 45%, rgba(62,196,111,.28), transparent 65%),
+    linear-gradient(160deg, #06301a 0%, #030d07 100%);
+  animation: splash-fallback 0s linear 2.8s forwards;
+}
+.splash-on body { overflow: hidden; }
+.splash-on .splash.out { animation: splash-up .9s cubic-bezier(.76,0,.24,1) forwards; }
+@keyframes splash-up { to { transform: translateY(-100%); } }
+@keyframes splash-fallback { to { visibility: hidden; opacity: 0; } }
+.splash-inner { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.splash .logo { height: 64px; }
+.splash .logo-word { filter: brightness(1.45) saturate(1.1); }
+.splash .logo .logo-word { animation: word-wipe 1s var(--ease-out) .35s both; }
+.splash-bar { width: 160px; height: 2px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+.splash-bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #3ec46f, #d40a17);
+                transform-origin: left; animation: splash-load 1.5s var(--ease-out) .2s both; }
+@keyframes splash-load { from { transform: scaleX(0); } }
+.splash-tag { font-size: 11px; font-weight: 600; letter-spacing: .3em; text-transform: uppercase;
+              color: rgba(238,244,240,.55); animation: view-in .8s var(--ease-out) .6s both; }
+
+/* ------------------------------------------------------- product banner */
+.hero-strip {
+  position: relative; overflow: hidden; isolation: isolate;
+  height: clamp(210px, 22vw, 270px);
+  border-radius: 22px;
+  margin-bottom: 22px;
+  background: #04210f;
+  box-shadow: 0 20px 50px rgba(4,33,15,.28);
+  animation: hero-in 1.1s var(--ease-out) both;
+}
+@keyframes hero-in {
+  from { opacity: 0; transform: translateY(18px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+.splash-on .hero-strip { animation-delay: 1.9s; }
+
+/* Photo fills the right ~64%; its left edge melts into the brand green. */
+.hs-media { position: absolute; top: -12%; bottom: -12%; right: 0; width: 66%; z-index: 0; will-change: transform;
+            -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.35) 14%, rgba(0,0,0,.8) 30%, #000 46%);
+            mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.35) 14%, rgba(0,0,0,.8) 30%, #000 46%); }
+.hs-slide { position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease; overflow: hidden; }
+.hs-slide.on { opacity: 1; }
+.hs-slide img { width: 100%; height: 100%; object-fit: cover; display: block; transform: scale(1.1); }
+.hs-slide.on img { animation: kenburns 7s cubic-bezier(.2,.6,.3,1) forwards; }
+@keyframes kenburns {
+  from { transform: scale(1.16) translate(var(--kx, 0), var(--ky, 0)); }
+  to   { transform: scale(1.02) translate(0, 0); }
+}
+.hs-shade {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(4,33,15,.9) 0%, rgba(4,33,15,.7) 36%, rgba(4,33,15,.35) 52%, rgba(4,33,15,.08) 72%, rgba(4,33,15,0) 100%),
+    linear-gradient(0deg, rgba(4,33,15,.55) 0%, transparent 40%);
+}
+/* A soft light drifting across the banner, like studio lighting. */
+.hs-shade::after {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(520px 260px at 15% 0%, rgba(62,196,111,.3), transparent 70%);
+  animation: light-drift 12s ease-in-out infinite alternate;
+}
+@keyframes light-drift { to { transform: translateX(38%); } }
+
+.hs-copy {
+  position: relative; z-index: 2; height: 100%;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 0 clamp(22px, 3.4vw, 44px) 14px; max-width: 60%;
+  color: #fff; will-change: transform, opacity;
+}
+.hs-eyebrow {
+  margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+  color: rgba(255,255,255,.66);
+}
+.hs-eyebrow::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #3ec46f;
+                      animation: nt-ping 2.4s ease-out infinite; }
+.hs-title { margin: 0; font-size: clamp(28px, 3.6vw, 46px); font-weight: 600; letter-spacing: -.035em; line-height: 1.04; }
+.hs-greet { display: block; color: rgba(255,255,255,.94); }
+.hs-name  { display: block; color: #3ec46f; overflow: hidden; padding-bottom: .06em; }
+.hs-name:empty { display: none; }
+.hs-name .ch { display: inline-block; transform: translateY(105%);
+               animation: nt-rise .8s var(--ease-out) calc(.1s + var(--i) * 40ms) forwards; }
+.hs-sub { margin: 12px 0 0; font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,.76); max-width: 46ch; }
+@keyframes nt-rise { to { transform: none; opacity: 1; } }
+@keyframes nt-ping { 0% { box-shadow: 0 0 0 0 rgba(62,196,111,.6); } 80%, 100% { box-shadow: 0 0 0 10px rgba(62,196,111,0); } }
+
+/* Glass label naming the product on screen. */
+.hs-product {
+  position: absolute; z-index: 2; right: 18px; bottom: 16px;
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 9px 14px 10px; border-radius: 14px;
+  background: rgba(4,33,15,.45); border: 1px solid rgba(255,255,255,.14);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3);
+  color: #fff; text-align: right;
+}
+.hs-product.swap > * { animation: label-in .7s var(--ease-out) both; }
+.hs-product.swap .hs-p-name { animation-delay: .07s; }
+@keyframes label-in { from { opacity: 0; transform: translateY(8px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+.hs-p-tag { font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.62); }
+.hs-p-name { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+
+.hs-dots { position: absolute; z-index: 2; left: clamp(22px, 3.4vw, 44px); bottom: 16px; display: flex; gap: 6px; }
+.hs-dot { width: 18px; height: 3px; padding: 0; border: 0; border-radius: 3px; cursor: pointer;
+          background: rgba(255,255,255,.25); transition: width .5s var(--ease-out), background .3s; }
+.hs-dot:hover { background: rgba(255,255,255,.5); }
+.hs-dot.on { width: 34px; background: #3ec46f; }
+
+/* ---------------------------------------------------- welcome showcase */
+.empty.showcase {
+  display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.05fr); align-items: center; gap: 40px;
+  text-align: left; padding: 24px 8px 40px;
+}
+.sc-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.empty.showcase h2 { font-size: clamp(22px, 2.4vw, 30px); letter-spacing: -.03em; line-height: 1.1; }
+.empty.showcase p { font-size: 14px; line-height: 1.6; max-width: 44ch; color: var(--ink-2); }
+.sc-cta {
+  position: relative; overflow: hidden; margin-top: 8px;
+  display: inline-flex; align-items: center; gap: 9px;
+  font: inherit; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer;
+  padding: 12px 20px; border: 0; border-radius: 999px;
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--brand) 35%, transparent);
+  transition: transform .35s var(--ease-out), box-shadow .35s var(--ease-out);
+}
+.sc-cta::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%);
+  transform: translateX(-120%); animation: cta-sheen 4s var(--ease-out) 1.5s infinite; }
+@keyframes cta-sheen { 0% { transform: translateX(-120%); } 40%, 100% { transform: translateX(120%); } }
+.sc-cta:hover { transform: translateY(-2px); box-shadow: 0 16px 34px color-mix(in srgb, var(--brand) 45%, transparent); }
+.sc-cta svg { width: 16px; height: 16px; }
+.sc-hint { font-size: 12px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; }
+.sc-hint svg { width: 14px; height: 14px; animation: nudge-up 1.6s ease-in-out infinite; }
+@keyframes nudge-up { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+/* Fanned product cards that follow the pointer in 3D. */
+.fan { --tx: 0; --ty: 0; position: relative; height: clamp(270px, 30vw, 370px); perspective: 1100px; }
+.fan-stage {
+  position: absolute; inset: 0; transform-style: preserve-3d;
+  transform: rotateY(calc(var(--tx) * 18deg)) rotateX(calc(var(--ty) * -14deg));
+  transition: transform .6s var(--ease-out);
+}
+.fan-card {
+  position: absolute; left: 50%; top: 50%; margin: 0;
+  width: clamp(150px, 16vw, 215px); aspect-ratio: 4 / 5;
+  border-radius: 18px; overflow: hidden; background: #111;
+  box-shadow: 0 24px 50px rgba(0,0,0,.28);
+  transform: translate(-50%, -50%) translateX(var(--x)) rotate(var(--r));
+  transition: transform .7s var(--ease-out), box-shadow .5s;
+  animation: fan-in 1.1s var(--ease-out) var(--d, 0s) both;
+}
+@keyframes fan-in { from { opacity: 0; transform: translate(-50%, -30%) rotate(0deg) scale(.9); } }
+.fan-card img { width: 100%; height: 100%; object-fit: cover; display: block; transform: scale(1.04); transition: transform 1.2s var(--ease-out); }
+.fan-card figcaption {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 28px 13px 11px;
+  background: linear-gradient(0deg, rgba(0,0,0,.75), transparent);
+  color: #fff; font-size: 13px; font-weight: 600; letter-spacing: -.01em;
+}
+.fan-card figcaption span { display: block; font-size: 9.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.66); }
+.fan-card:nth-child(2) { z-index: 2; }
+.fan:hover .fan-card:nth-child(1),
+.fan:hover .fan-card:nth-child(3) { transform: translate(-50%, -50%) translateX(calc(var(--x) * 1.45)) rotate(calc(var(--r) * 1.4)); }
+.fan:hover .fan-card:nth-child(2) { transform: translate(-50%, -54%) translateZ(60px) scale(1.05); box-shadow: 0 34px 70px rgba(0,0,0,.35); }
+.fan-card:hover img { transform: scale(1.12); }
+
+/* ------------------------------------------------------- range gallery */
+.range { max-width: 1240px; margin: 0 auto; padding: 8px 20px 34px; }
+.range-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.range-title { font-size: 12px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); margin: 0; }
+.range-title b { color: var(--accent); font-weight: 700; }
+.range-note { font-size: 12px; color: var(--ink-3); }
+.range-viewport {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.range-track { display: flex; gap: 14px; width: max-content; animation: range-roll 60s linear infinite; padding: 8px 0 14px; }
+.range-viewport:hover .range-track { animation-play-state: paused; }
+@keyframes range-roll { to { transform: translateX(calc(-50% - 7px)); } }
+.range-card {
+  margin: 0; width: 230px; flex: none;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: 16px; overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: transform .5s var(--ease-out), box-shadow .5s var(--ease-out);
+}
+.range-card:hover { transform: translateY(-6px) rotate(-.6deg); box-shadow: var(--shadow-hover); }
+.range-img { aspect-ratio: 1 / 1; overflow: hidden; background: #0b0f0c; }
+.range-img img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 1.1s var(--ease-out); }
+.range-card:hover .range-img img { transform: scale(1.1); }
+.range-card figcaption { padding: 10px 13px 12px; display: flex; flex-direction: column; gap: 1px; }
+.range-card strong { font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
+.range-card span { font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+
+.site-foot {
+  max-width: 1240px; margin: 0 auto; padding: 18px 20px 30px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  border-top: 1px solid var(--hairline); color: var(--ink-3); font-size: 12px;
+}
+.site-foot .logo { height: 24px; }
+.foot-booth { display: flex; align-items: center; gap: 12px; }
+.foot-booth img { width: 68px; height: auto; animation: float-bob 5s ease-in-out infinite; filter: drop-shadow(0 8px 14px rgba(0,0,0,.18)); }
+
+/* ---------------------------------------------------------- responsive */
+@media (max-width: 900px) {
+  .empty.showcase { grid-template-columns: minmax(0,1fr); gap: 16px; text-align: center; }
+  .sc-copy { align-items: center; }
+  .fan { height: 260px; }
+  .hs-copy { max-width: 80%; }
+  .hs-media { width: 100%; -webkit-mask-image: none; mask-image: none; }
+  .hs-shade { background: linear-gradient(90deg, rgba(4,33,15,.95) 0%, rgba(4,33,15,.72) 55%, rgba(4,33,15,.25) 100%),
+                           linear-gradient(0deg, rgba(4,33,15,.6) 0%, transparent 45%); }
+}
+@media (max-width: 640px) {
+  .hero-strip { height: 210px; border-radius: 18px; margin-bottom: 16px; }
+  .hs-copy { max-width: 100%; padding-right: 20px; }
+  .hs-product { display: none; }
+  .fan-card { width: 132px; }
+  .range { padding: 4px 13px 28px; }
+  .range-card { width: 170px; }
+  .site-foot { padding: 16px 13px 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .range-viewport { overflow-x: auto; }
+  .range-track { animation: none; }
+  .hs-name .ch { transform: none; }
+  .splash-on .splash { display: none; }
+}

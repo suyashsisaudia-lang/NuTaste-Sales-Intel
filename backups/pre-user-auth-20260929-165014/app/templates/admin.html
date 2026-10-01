@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Sales Desk — Data administration</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/brand.css">
+<link rel="icon" type="image/png" href="/static/brand/nutaste-apple.png">
+<style>
+  .adm{max-width:960px;margin:0 auto;padding:24px 16px 60px}
+  .adm-top{background:var(--glass);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--glass-line);border-radius:var(--r-lg);box-shadow:var(--shadow);margin:0 0 24px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;animation:view-in .6s var(--ease-out)}
+  .adm-top .brand{margin-right:0}
+  .adm-top nav{display:flex;gap:8px}
+  .adm-top nav a{color:var(--ink-2);font-size:12.5px;font-weight:500;text-decoration:none;padding:6px 12px;border-radius:999px;border:1px solid var(--hairline-2);transition:color .2s,border-color .2s,background .2s}
+  .adm-top nav a:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+  .adm h1{font-size:11.5px;margin:0;font-weight:600}
+  .adm .card{animation:view-in .7s var(--ease-out) .1s both}
+  .adm .card + .card{animation-delay:.2s}
+  .adm-banner{position:relative;overflow:hidden;height:170px;border-radius:20px;margin-bottom:22px;background:#04210f;animation:view-in .8s var(--ease-out) both}
+  .adm-banner img{position:absolute;right:0;top:0;width:64%;height:100%;object-fit:cover;object-position:50% 40%;animation:kenburns 14s ease-out both}
+  .adm-banner::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#04210f 0%,#04210f 34%,rgba(4,33,15,.2) 75%,transparent)}
+  .adm-banner div{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;justify-content:center;padding:0 30px;color:#fff;max-width:60%}
+  .adm-banner p{margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.65)}
+  .adm-banner strong{font-size:26px;font-weight:600;letter-spacing:-.03em;line-height:1.1}
+  .adm-banner strong em{font-style:normal;color:#3ec46f}
+  .adm h2{font-size:15px;margin:0 0 6px}
+  .adm .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+  .adm .card{background:var(--surface);border:1px solid var(--hairline);border-radius:12px;padding:18px}
+  .adm dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;margin:12px 0 16px}
+  .adm dt{color:var(--ink-3)}
+  .adm dd{margin:0;font-family:var(--mono)}
+  .adm label{display:block;font-size:12px;color:var(--ink-2);margin:10px 0 4px}
+  .adm input[type=file],.adm input[type=date]{font:inherit;font-size:13px;width:100%}
+  .adm button{margin-top:12px;font:inherit;font-weight:600;font-size:13px;padding:9px 14px;border:0;border-radius:8px;background:var(--brand);color:var(--brand-ink);cursor:pointer}
+  .adm .dl{font-size:12px;margin-left:10px}
+  .adm .flash{border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:16px}
+  .adm .flash:empty{display:none}
+  .adm .ok{background:#e7f6ec;color:#1b5e20}
+  .adm .bad{background:#fdecec;color:#9b2226}
+  .adm .note{font-size:12px;color:var(--ink-3);line-height:1.5;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="adm">
+  <div class="adm-top">
+    <div class="brand">
+      <span class="logo intro" role="img" aria-label="NuTaste">
+        <span class="logo-apple">
+          <img class="logo-body" src="/static/brand/nutaste-apple-hd.png" alt="">
+        </span>
+        <img class="logo-word" src="/static/brand/nutaste-word.png" alt="">
+      </span>
+      <h1 class="brand-sub">Data administration</h1>
+    </div>
+    <nav><a href="/">Back to Sales Desk</a><a href="/logout">Sign out</a></nav>
+  </div>
+
+  <div class="adm-banner"><img src="/static/brand/products/spring-showcase.jpg" alt="" decoding="async"><div><p>Admin · Data</p><strong>Keep every salesperson&rsquo;s <em>numbers fresh.</em></strong></div></div>
+
+  <div class="flash ok">{{ msg }}</div>
+  <div class="flash bad">{{ err }}</div>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Receivables (AR)</h2>
+      <dl>
+        <dt>Report date</dt><dd>{{ ar_report_date }}</dd>
+        <dt>Invoice lines</dt><dd>{{ ar_lines }}</dd>
+        <dt>Salespeople</dt><dd>{{ ar_people }}</dd>
+        <dt>Total balance</dt><dd>₹ {{ ar_total }}</dd>
+        <dt>Last updated</dt><dd>{{ ar_updated }}</dd>
+        <dt>Source</dt><dd>{{ ar_source }}</dd>
+      </dl>
+      <form method="post" action="/admin/upload" enctype="multipart/form-data">
+        <input type="hidden" name="kind" value="ar">
+        <label>AR extract (.xlsx / .csv) or dataset JSON</label>
+        <input type="file" name="file" accept=".xlsx,.xlsm,.csv,.json" required>
+        <label>Report date (the "as at" date for Excel/CSV imports)</label>
+        <input type="date" name="report_date" value="{{ today }}">
+        <button type="submit">Replace AR dataset</button>
+        <a class="dl" href="/admin/download/ar">download current JSON</a>
+      </form>
+      <p class="note">Ageing buckets are recomputed from Due Date against the report date during import. Column names are matched using <code>config/ar_columns.json</code>; the import is rejected if a required column cannot be found.</p>
+    </section>
+
+    <section class="card">
+      <h2>Secondary Sales</h2>
+      <dl>
+        <dt>Default month</dt><dd>{{ sec_period }}</dd>
+        <dt>Months stored</dt><dd>{{ sec_months }}</dd>
+        <dt>People</dt><dd>{{ sec_people }}</dd>
+        <dt>Visit rows</dt><dd>{{ sec_visits }}</dd>
+        <dt>Last updated</dt><dd>{{ sec_updated }}</dd>
+        <dt>Source</dt><dd>{{ sec_source }}</dd>
+        <dt>Auto-refresh</dt><dd>{{ sec_refresh_schedule }}</dd>
+        <dt>Last refresh</dt><dd>{{ sec_refresh_last }}</dd>
+      </dl>
+      <form method="post" action="/admin/refresh-sec"
+            onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Refreshing… (about a minute)';">
+        <button type="submit" {{ sec_refresh_disabled }}>Refresh now from SharePoint</button>
+      </form>
+      <p class="note">Downloads the workbook from the configured SharePoint link and imports every month in it; the latest month is what the page shows by default. If the download or import fails, the current data is kept.</p>
+      <form method="post" action="/admin/upload" enctype="multipart/form-data">
+        <input type="hidden" name="kind" value="sec">
+        <label>Secondary Sales workbook (.xlsx) or dataset JSON</label>
+        <input type="file" name="file" accept=".xlsx,.xlsm,.json" required>
+        <label>Month to re-import (leave blank to import every month in the file)</label>
+        <input type="text" name="period" placeholder="2026-08" pattern="[0-9]{4}-[0-9]{2}">
+        <button type="submit">Replace Secondary Sales dataset</button>
+        <a class="dl" href="/admin/download/sec">download current JSON</a>
+      </form>
+      <p class="note">Reads the <code>Secondary sale</code>, <code>Visit_report</code>, <code>Demos</code>, <code>Leads Header</code>, <code>Travel</code>, <code>Expenses</code> and <code>Channelier Employees</code> sheets, and stores each month separately so salespeople can pick one on the Secondary Sales page. Name spellings differing between sheets are resolved against the employee roster; anything unresolved is listed in the import result rather than dropped. A large workbook takes around 20 seconds to process.</p>
+    </section>
+  </div>
+
+  <p class="note">Every replacement keeps a timestamped backup under <code>data/backups/</code>. Uploads never modify Business Central or any other system.</p>
+</div>
+</body>
+</html>
