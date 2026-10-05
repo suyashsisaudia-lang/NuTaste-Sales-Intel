@@ -4,13 +4,13 @@
     "source": "Channel_Accounts_Receivable extract (ageing recomputed as at 2026-09-12)"
   },
   "sec": {
-    "updated": "2026-09-28 11:16:04",
-    "source": "SharePoint auto-refresh, manual (2026-09)"
+    "updated": "2026-10-05 11:00:53",
+    "source": "SharePoint auto-refresh, scheduled (2026-10)"
   },
   "secRefresh": {
-    "lastAttempt": "2026-09-28T11:16:04+05:30",
+    "lastAttempt": "2026-10-05T11:00:53+05:30",
     "ok": true,
-    "message": "Imported 9 months (2026-01 to 2026-09) from SharePoint (22.9 MB); default view 2026-09",
-    "trigger": "manual"
+    "message": "Imported 10 months (2026-01 to 2026-10) from SharePoint (23.4 MB); default view 2026-10",
+    "trigger": "scheduled"
   }
 }
