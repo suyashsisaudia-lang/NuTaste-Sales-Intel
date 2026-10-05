@@ -401,7 +401,7 @@ def healthz_data():
 
 
 # Form fields for the one sign-in template (login.html), which serves the
-# site login, the admin login and the change-password form.
+# site login and the admin login.
 _ICON_USER = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
               'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
               '<circle cx="12" cy="8.5" r="3.8"></circle><path d="M4.5 20a7.5 7.5 0 0 1 15 0"></path></svg>')
@@ -443,8 +443,7 @@ def login_form(request: Request, error: str = "", u: str = ""):
     fields = (_field("username", "email", "Work email", "username", email, autofocus=not email)
               + _field("password", "password", "Password", "current-password", autofocus=bool(email)))
     return _gate("Sales Desk", "Sign in with your NuTaste email and password.", "/login", fields,
-                 error=msg, hint='<a href="/account/password">Change password</a> · '
-                                 'Forgotten it? Ask IT to reset it.')
+                 error=msg, hint='Forgotten your password? Ask IT to reset it.')
 
 
 @app.post("/login")
@@ -480,60 +479,12 @@ def login(request: Request, username: str = Form(""), password: str = Form("")):
     return resp
 
 
-@app.get("/account/password", response_class=HTMLResponse)
-def password_form(request: Request, error: str = "", done: str = "", u: str = ""):
-    # Reached from the sign-in page, so no session is needed: the current
-    # password proves who is asking, exactly as it does at sign-in.
-    msg = {"bad": "That email and current password don't match an account.",
-           "short": f"The new password needs at least {users.MIN_PASSWORD_CHARS} characters.",
-           "match": "The two new passwords don't match.",
-           "same": "The new password must be different from the current one.",
-           "rate": "Too many attempts. Please wait a few minutes and try again."}.get(error, "")
-    if done:
-        return _gate("Password changed", "", "/login", "", button="Sign in",
-                     notice="Your new password is saved. Sign in with it now.")
-    email = u[:120]
-    fields = (_field("username", "email", "Work email", "username", email, autofocus=not email)
-              + _field("current", "password", "Current password", "current-password",
-                       autofocus=bool(email))
-              + _field("new", "password", f"New password ({users.MIN_PASSWORD_CHARS}+ characters)",
-                       "new-password")
-              + _field("confirm", "password", "Repeat new password", "new-password"))
-    return _gate("Change password", "Enter your work email, your current password and a new one.",
-                 "/account/password", fields, error=msg, button="Save new password",
-                 hint='<a href="/login">Back to sign in</a>')
-
-
-@app.post("/account/password")
-def password_change(request: Request, username: str = Form(""), current: str = Form(""),
-                    new: str = Form(""), confirm: str = Form("")):
-    from urllib.parse import quote
-    ip = _client_ip(request)
-    email = username.strip().lower()[:120]
-    back = f"/account/password?u={quote(email)}&error="
-    # Same per-IP and per-account limits as sign-in: this form checks a
-    # password too, so it must not become a way round them.
-    acct = f"acct:{email}"
-    if _too_many_attempts(ip) or (email and _too_many_attempts(acct)):
-        return RedirectResponse(back + "rate", status_code=303)
-    if not (email and current) or email == users.SHARED_EMAIL             or user_store.authenticate(email, current) is None:
-        _record_attempt(ip)
-        if email:
-            _record_attempt(acct)
-        return RedirectResponse(back + "bad", status_code=303)
-    if len(new) < users.MIN_PASSWORD_CHARS:
-        return RedirectResponse(back + "short", status_code=303)
-    if new != confirm:
-        return RedirectResponse(back + "match", status_code=303)
-    if new == current:
-        return RedirectResponse(back + "same", status_code=303)
-    user_store.set_password(email, new, by="self")
-    log.info("password changed by %s", email)
-    # set_password rotates the session tag, so every open session on this
-    # account (including one in this browser) is signed out.
-    resp = RedirectResponse("/account/password?done=1", status_code=303)
-    resp.delete_cookie(SESSION_COOKIE, path="/")
-    return resp
+@app.get("/account/password")
+def password_form():
+    # Self-service password change was removed: on Render the change was lost
+    # at the next restart (no persistent disk). IT resets passwords instead.
+    # Old bookmarks land on the sign-in page.
+    return RedirectResponse("/login", status_code=303)
 
 
 @app.get("/logout")
