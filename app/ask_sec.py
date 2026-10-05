@@ -20,10 +20,13 @@ computes every figure from the real rows. Nothing it returns can invent a
 number. This is what `/api/ask/sec` still serves, and what the built-in parser
 falls back to when no model is reachable.
 
-Both modes are scoped to ONE person and ONE calendar month, and both resolve
-names against that person's own rows, so neither can reach another person's
-activity.
+Both modes are scoped to ONE person, and both resolve names against that
+person's own rows, so neither can reach another person's activity. Spec mode
+covers the month on screen only. Analyst mode also receives that person's
+full calendar year as exact aggregates (see `build_year_summary`) — rows for the
+month on screen, totals for the year — so it can answer year questions too.
 """
+import calendar
 import re
 from typing import Any, Dict, List, Optional
 
@@ -296,10 +299,234 @@ def build_analyst_payload(sec: dict, person_index: int) -> Optional[dict]:
     }
 
 
+# ------------------------------------------------------------ full-year summary
+# The analyst also sees the rest of the calendar year, as exact aggregates only.
+# A year of rows is far too long to send (one person has over 7,000 sale lines),
+# and the figures a year question needs — month by month, outlet by outlet — are
+# better computed here than re-added by the model anyway.
+YEAR_MAX_OUTLETS = 60
+YEAR_MAX_CITIES = 20
+YEAR_MAX_VISITED = 30
+
+
+def _label(pools: dict, name: str, ix: Any) -> str:
+    pool = pools.get(name)
+    return pool[ix] if isinstance(pool, list) and isinstance(ix, int) and 0 <= ix < len(pool) else ""
+
+
+def month_name(month: str) -> str:
+    """'2026-09' -> 'Sep 2026'."""
+    try:
+        y, m = month.split("-")
+        return f"{calendar.month_abbr[int(m)]} {y}"
+    except (ValueError, IndexError):
+        return month
+
+
+def _tally(agg: Dict[str, List[float]], label: str, value: float) -> None:
+    slot = agg.setdefault(label or "—", [0.0, 0])
+    slot[0] += value or 0
+    slot[1] += 1
+
+
+def _ranked(agg: Dict[str, List[float]]) -> List[tuple]:
+    out = [(k, round(v[0], 2), int(v[1])) for k, v in agg.items()]
+    out.sort(key=lambda t: (-t[1], -t[2]))
+    return out
+
+
+def build_year_summary(months: List[tuple], person: str,
+                       in_progress: Optional[str] = None) -> Optional[dict]:
+    """Exact month-by-month and full-year figures for one person.
+
+    `months` is [(YYYY-MM, sec), ...], oldest first, each `sec` already scoped
+    to the viewer. Person indices and pool indices both differ between month
+    files, so the person is found by name and every group is keyed by its
+    label, never by an index.
+    """
+    per_month: List[dict] = []
+    outlets: Dict[str, dict] = {}
+    pgroups: Dict[str, Dict[str, float]] = {}
+    cities: Dict[str, List[float]] = {}
+    visited: Dict[str, List[float]] = {}
+    demo_stage: Dict[str, List[float]] = {}
+    demo_status: Dict[str, List[float]] = {}
+    lead_stage: Dict[str, List[float]] = {}
+    lead_status: Dict[str, List[float]] = {}
+    exp_region: Dict[str, List[float]] = {}
+    bought_any, visited_any = set(), set()
+
+    for month, sec in months:
+        people = sec.get("people") or []
+        if person not in people:
+            per_month.append({"month": month, "absent": True})
+            continue
+        ix = people.index(person)
+        pools = sec.get("pools") or {}
+        rows = {k: _rows_for(sec, k, ix) for k in DATASETS}
+
+        bought = set()
+        for r in rows["sales"]:
+            buyer = _label(pools, "buyer", r[SL["BUYER"]]) or "—"
+            bought.add(buyer)
+            o = outlets.setdefault(buyer, {"value": 0.0, "lines": 0, "months": set()})
+            o["value"] += r[SL["VAL"]] or 0
+            o["lines"] += 1
+            o["months"].add(month)
+            pg = _label(pools, "pgroup", r[SL["PGROUP"]]) or "—"
+            pgroups.setdefault(pg, {})
+            pgroups[pg][month] = pgroups[pg].get(month, 0) + (r[SL["VAL"]] or 0)
+            _tally(cities, _label(pools, "city", r[SL["CITY"]]), r[SL["VAL"]])
+        seen = set()
+        for r in rows["visits"]:
+            buyer = _label(pools, "buyer", r[V["BUYER"]]) or "—"
+            seen.add(buyer)
+            _tally(visited, buyer, 0)
+        for r in rows["demos"]:
+            _tally(demo_stage, _label(pools, "stage", r[DM["STAGE"]]), r[DM["VAL"]])
+            _tally(demo_status, _label(pools, "status", r[DM["STATUS"]]), r[DM["VAL"]])
+        for r in rows["leads"]:
+            _tally(lead_stage, _label(pools, "lstage", r[LD["STAGE"]]), r[LD["VAL"]])
+            _tally(lead_status, _label(pools, "status", r[LD["STATUS"]]), r[LD["VAL"]])
+        for r in rows["expenses"]:
+            _tally(exp_region, _label(pools, "region", r[EX["REGION"]]), r[EX["AMT"]])
+        bought_any |= bought
+        visited_any |= seen
+
+        def total(kind: str, col: int) -> float:
+            return round(sum(r[col] or 0 for r in rows[kind]), 2)
+
+        per_month.append({
+            "month": month,
+            "sales_rs": total("sales", SL["VAL"]), "qty": total("sales", SL["QTY"]),
+            "sale_lines": len(rows["sales"]), "outlets_bought": len(bought),
+            "visits": len(rows["visits"]), "visit_minutes": total("visits", V["MINS"]),
+            "outlets_visited": len(seen),
+            "demos": len(rows["demos"]),
+            "demos_converted": sum(1 for r in rows["demos"] if r[DM["CONV"]]),
+            "demo_rs": total("demos", DM["VAL"]),
+            "leads": len(rows["leads"]), "lead_rs": total("leads", LD["VAL"]),
+            "km": total("travel", TR["TOTAL"]), "work_km": total("travel", TR["WORK"]),
+            "travel_days": len(rows["travel"]),
+            "expense_rs": total("expenses", EX["AMT"]), "claims": len(rows["expenses"]),
+        })
+
+    present = [m for m in per_month if not m.get("absent")]
+    if not present:
+        return None
+
+    summed = ("sales_rs", "qty", "sale_lines", "visits", "visit_minutes", "demos",
+              "demos_converted", "demo_rs", "leads", "lead_rs", "km", "work_km",
+              "travel_days", "expense_rs", "claims")
+    year_total = {k: round(sum(m[k] for m in present), 2) for k in summed}
+    year_total["outlets_bought"] = len(bought_any)
+    year_total["outlets_visited"] = len(visited_any)
+
+    outlet_rows = sorted(
+        ((name, round(o["value"], 2), o["lines"], len(o["months"]), max(o["months"]))
+         for name, o in outlets.items()),
+        key=lambda t: (-t[1], -t[2]))
+
+    return {
+        "months": [m for m, _ in months],
+        "inProgress": in_progress,
+        "perMonth": per_month,
+        "total": year_total,
+        "outlets": outlet_rows,
+        "productGroups": sorted(
+            ((pg, round(sum(v.values()), 2), {m: round(x, 2) for m, x in v.items()})
+             for pg, v in pgroups.items()), key=lambda t: -t[1]),
+        "cities": _ranked(cities),
+        "visited": _ranked(visited),
+        "demoStage": _ranked(demo_stage), "demoStatus": _ranked(demo_status),
+        "leadStage": _ranked(lead_stage), "leadStatus": _ranked(lead_status),
+        "expenseRegion": _ranked(exp_region),
+    }
+
+
+def _year_lines(y: dict) -> List[str]:
+    first, last = month_name(y["months"][0]), month_name(y["months"][-1])
+    t = y["total"]
+    L = [
+        "",
+        f"=== FULL CALENDAR YEAR: {first} to {last} (EXACT — computed by the application; "
+        f"no individual rows are given for the year) ===",
+    ]
+    if y.get("inProgress"):
+        L.append(f"{month_name(y['inProgress'])} is the current month and is still in "
+                 f"progress, so its figures are partial.")
+    L += [
+        "",
+        "MONTH BY MONTH:",
+        "  month | sales_rs | units | sale_lines | outlets_bought | visits | visit_min | "
+        "outlets_visited | demos | converted | demo_est_rs | leads | lead_est_rs | km | "
+        "working_km | travel_days | expenses_rs | claims",
+    ]
+    for m in y["perMonth"]:
+        if m.get("absent"):
+            L.append(f"  {month_name(m['month'])} | not on this month's data — no activity recorded")
+            continue
+        L.append("  " + " | ".join([
+            month_name(m["month"]), f"₹{_inr(m['sales_rs'])}", _inr(m["qty"]),
+            str(m["sale_lines"]), str(m["outlets_bought"]), str(m["visits"]),
+            _inr(m["visit_minutes"]), str(m["outlets_visited"]), str(m["demos"]),
+            str(m["demos_converted"]), f"₹{_inr(m['demo_rs'])}", str(m["leads"]),
+            f"₹{_inr(m['lead_rs'])}", _inr(m["km"]), _inr(m["work_km"]),
+            str(m["travel_days"]), f"₹{_inr(m['expense_rs'])}", str(m["claims"])]))
+    L += [
+        "",
+        f"YEAR TOTAL: sales ₹{_inr(t['sales_rs'])}, {_inr(t['qty'])} units, "
+        f"{t['sale_lines']:.0f} sale lines, {t['outlets_bought']} distinct outlets bought; "
+        f"{t['visits']:.0f} visits ({_inr(t['visit_minutes'])} min) to "
+        f"{t['outlets_visited']} distinct outlets; {t['demos']:.0f} demos, "
+        f"{t['demos_converted']:.0f} converted, ₹{_inr(t['demo_rs'])} est.; "
+        f"{t['leads']:.0f} leads, ₹{_inr(t['lead_rs'])} est.; {_inr(t['km'])} km "
+        f"({_inr(t['work_km'])} working) over {t['travel_days']:.0f} day(s); "
+        f"expenses ₹{_inr(t['expense_rs'])} across {t['claims']:.0f} claim(s)",
+        "",
+        f"YEAR SALES BY OUTLET (largest first; 'last bought' is the latest month with a sale):",
+    ]
+    for name, value, lines, n_months, last_m in y["outlets"][:YEAR_MAX_OUTLETS]:
+        L.append(f"    {name}: ₹{_inr(value)} across {lines} line(s); bought in "
+                 f"{n_months} month(s); last bought {month_name(last_m)}")
+    rest = y["outlets"][YEAR_MAX_OUTLETS:]
+    if rest:
+        L.append(f"    ...and {len(rest)} more outlet(s), ₹{_inr(sum(r[1] for r in rest))} "
+                 f"between them")
+    L.append("")
+    L.append("YEAR SALES BY PRODUCT GROUP (year total, then month by month):")
+    for pg, total, by_m in y["productGroups"]:
+        months = ", ".join(f"{month_name(m)} ₹{_inr(by_m[m])}" for m in sorted(by_m))
+        L.append(f"    {pg}: ₹{_inr(total)} | {months}")
+    L += ["", "YEAR SALES BY CITY:", *_fmt_breakdown(y["cities"], "₹", YEAR_MAX_CITIES),
+          "", "YEAR VISITS BY OUTLET:", *_fmt_breakdown(y["visited"], "count", YEAR_MAX_VISITED),
+          "", "YEAR DEMOS by stage:", *_fmt_breakdown(y["demoStage"], "₹"),
+          "  by status:", *_fmt_breakdown(y["demoStatus"], "₹"),
+          "", "YEAR LEADS by stage:", *_fmt_breakdown(y["leadStage"], "₹"),
+          "  by status:", *_fmt_breakdown(y["leadStatus"], "₹"),
+          "", "YEAR EXPENSES by region:", *_fmt_breakdown(y["expenseRegion"], "₹")]
+    return L
+
+
 ANALYST_SYSTEM = """\
-You are a sales analyst. You are given one salesperson's complete field activity
-for one calendar month, as rows, and your job is to answer the question put to
-you — directly, with figures, and with a conclusion.
+You are a sales analyst. You are given one salesperson's field activity in two
+scopes, and your job is to answer the question put to you — directly, with
+figures, and with a conclusion.
+
+- THE MONTH ON SCREEN: every row for that one calendar month, plus exact totals.
+- THE FULL CALENDAR YEAR (when provided): exact month-by-month totals and
+  full-year breakdowns computed by the application. No rows are given for it.
+
+Choosing the scope:
+- If the question mentions the year, YTD, "so far", all / every / each month,
+  a month other than the one on screen, a trend, growth, or a comparison between
+  months, answer from the FULL CALENDAR YEAR section.
+- Otherwise answer for the month on screen.
+- Always say which period your figures cover, e.g. "Jan–Oct 2026" or
+  "September 2026". Never present one month's figure as the year's.
+- The year section has no rows. If a year question needs detail it does not
+  carry (for example one outlet's product mix across the year), say so in one
+  line and answer the closest thing it does carry.
 
 Answer the question. Rank, compare, total, work out a rate, name the outlet or
 the product group, and say what it means. Do not deflect a question you can
@@ -318,12 +545,15 @@ On figures:
 On honesty:
 - Use only the rows you are given. Do not import outside knowledge about these
   outlets, products, cities or the market.
-- This is ONE month for ONE person. There is no prior period, no target, no
-  stock position and no competitor data. If the question needs one of those,
-  say so in one line, then answer the closest thing the rows DO support and
-  label it as a proxy — for example, a question about losing customers can be
-  answered with outlets that bought once and were never repeated, or that were
-  visited without buying.
+- This is ONE person. There is nothing before January of this calendar year (so
+  no year-on-year comparison), no target, no stock position and no competitor
+  data. If the question needs one of those, say so in one line, then answer the
+  closest thing the data DOES support and label it as a proxy — for example, a
+  question about losing customers can be answered with outlets that bought in
+  earlier months but not recently (see "last bought" in the year section), or
+  that were visited without buying.
+- A month marked as still in progress has partial figures; do not call it a
+  decline.
 - State your assumptions where a question is open to reading more than one way.
 - If a figure is weak because it rests on very few rows, say so.
 
@@ -392,9 +622,11 @@ def build_analyst_prompt(payload: dict, question: str) -> str:
     e = payload["exact"]
     L: List[str] = [
         f"Salesperson: {payload['person']}",
-        f"Period: {payload['periodFrom']} to {payload['periodTo']} (one calendar month).",
+        f"Month on screen: {payload['periodFrom']} to {payload['periodTo']} "
+        f"({month_name(str(payload['periodFrom'])[:7])}).",
         "",
-        "=== EXACT TOTALS (computed from the rows by the application — quote these) ===",
+        "=== MONTH ON SCREEN — EXACT TOTALS (computed from the rows by the application "
+        "— quote these) ===",
         "",
         f"SALES: ₹{_inr(e['sales']['value_rs'])} total, {e['sales']['qty']:,.0f} units, "
         f"{e['sales']['lines']} sale lines",
@@ -422,7 +654,7 @@ def build_analyst_prompt(payload: dict, question: str) -> str:
         f"EXPENSES: ₹{_inr(e['expenses']['amount_rs'])} across {e['expenses']['claims']} claim(s)",
         "  by region:", *_fmt_breakdown(e["expenses"]["by_region"], "₹"),
         "",
-        "=== ROWS (day is the day of the month, 1-31) ===",
+        "=== MONTH ON SCREEN — ROWS (day is the day of the month, 1-31) ===",
     ]
 
     for kind in DATASETS:
@@ -435,6 +667,9 @@ def build_analyst_prompt(payload: dict, question: str) -> str:
         if t["dropped"]:
             L.append(f"  (earliest {t['dropped']} row(s) omitted for length; "
                      f"the EXACT TOTALS above still cover all of them)")
+
+    if payload.get("year"):
+        L += _year_lines(payload["year"])
 
     L += ["", "=== QUESTION ===", question]
     return "\n".join(L)

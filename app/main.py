@@ -927,6 +927,28 @@ def api_ask_sec(request: Request, body: AskSecRequest):
             "narrate": settings.ask_narrate}
 
 
+def _sec_year_summary(viewer: users.Viewer, sec: dict, person: str) -> Optional[dict]:
+    """The person's full calendar year, as exact aggregates, for the analyst.
+
+    The year is the one the month on screen falls in. Every month file is scoped
+    to the same viewer as the month on screen, so this reaches no one the page
+    itself could not show. A failure here costs only the year context, never
+    the answer.
+    """
+    shown = _sec_month_of(sec)
+    if not MONTH_RE.match(shown):
+        return None
+    try:
+        months = [(m, sec if m == shown else _sec_for(viewer, m))
+                  for m in _sec_months() if m[:4] == shown[:4]]
+        current = date.today().strftime("%Y-%m")
+        return ask_sec_mod.build_year_summary(
+            months, person, current if any(m == current for m, _ in months) else None)
+    except Exception:  # noqa: BLE001 — a damaged month file must not sink the answer
+        log.exception("Secondary analyst: year summary failed")
+        return None
+
+
 # --------------------------------------------- ask (AI) — secondary, analyst
 # The live path for a typed question. Unlike /api/ask/sec above, the model is
 # given this person's real rows and real amounts and answers directly: it ranks,
@@ -953,10 +975,12 @@ def api_ask_sec_analyst(request: Request, body: AskSecRequest):
     if not question:
         return {"ok": False, "reason": "empty"}
 
-    payload = ask_sec_mod.build_analyst_payload(_sec_for(viewer, body.month), body.person)
+    sec = _sec_for(viewer, body.month)
+    payload = ask_sec_mod.build_analyst_payload(sec, body.person)
     if payload is None:
         return {"ok": False, "reason": "no-data"}
-    if not any(t["lines"] for t in payload["tables"].values()):
+    payload["year"] = _sec_year_summary(viewer, sec, payload["person"])
+    if not any(t["lines"] for t in payload["tables"].values()) and not payload["year"]:
         # No rows at all for this person: there is nothing to analyse, and the
         # page says so itself without spending a call.
         return {"ok": False, "reason": "no-data"}

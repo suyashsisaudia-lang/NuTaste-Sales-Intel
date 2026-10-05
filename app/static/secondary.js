@@ -407,6 +407,8 @@
 
   // ================================================================
   // ASK — natural-language questions about this person's month.
+  // (The AI analyst path also sees the full calendar year as exact totals; the
+  // built-in engine below stays on the month on screen — see beyondMonth.)
   //
   // Same contract as the receivables Ask box: the model chooses a table and a
   // filter, and every figure on screen is computed HERE from the real rows. No
@@ -939,6 +941,26 @@
       if (OUT_OF_SCOPE[i][0].test(q)) return OUT_OF_SCOPE[i][1];
     }
     return null;
+  }
+
+  // ---- questions about more than the month on screen. Only the AI analyst
+  // sees the full year; the built-in engine reads this one month's rows, and
+  // would otherwise answer "sales each month" or "sales in March" with this
+  // month's total. The on-screen month's own name is allowed through. "May" is
+  // left out: it is far more often the verb than the month.
+  var MONTH_WORDS = [
+    ['jan', 'january'], ['feb', 'february'], ['mar', 'march'], ['apr', 'april'], null,
+    ['jun', 'june'], ['jul', 'july'], ['aug', 'august'], ['sep', 'sept', 'september'],
+    ['oct', 'october'], ['nov', 'november'], ['dec', 'december']
+  ];
+  var BEYOND_MONTH = /\b(year|years|yearly|annual|annually|ytd|year.to.date|so far|all months|every month|each month|per month|by month|monthly|month.?wise|which month|what month|best month|worst month|months?.on.months?|trend|trends|growth|grew|decline|declined)\b/i;
+
+  function beyondMonth(q) {
+    if (BEYOND_MONTH.test(q)) return true;
+    var shown = +S.periodFrom.split('-')[1] - 1;
+    return MONTH_WORDS.some(function (names, i) {
+      return names && i !== shown && new RegExp('\\b(' + names.join('|') + ')\\b', 'i').test(q);
+    });
   }
 
   // Tables that can answer a question about a given field, in the order a person
@@ -1480,6 +1502,18 @@
     var slot = document.getElementById('sec-answer-slot');
     if (!slot) return;
     var src = wasFallback ? FALLBACK_SRC : LOCAL_SRC;
+
+    if (beyondMonth(text)) {
+      renderRefusal(slot, text,
+        'The built-in engine reads only ' + periodLabel() + ', the month on screen. ' +
+        'Full-year and month-by-month questions are answered by the AI analyst, which ' +
+        (wasFallback ? 'could not be reached just now — please try again in a minute.'
+                     : 'is not switched on for this server.') +
+        ' To look at a single other month, pick it from the month selector.',
+        src, 'Full-year questions need the AI analyst.');
+      return;
+    }
+
     var parsed = parseSecQuestion(text, person);
 
     // The same verdict the model gives through `spec.refusal`, reached without
@@ -1586,10 +1620,13 @@
     aiStatus().then(function (on) {
       var note = fc.root.querySelector('.card-note');
       if (note) {
-        note.textContent = on
-          ? 'ask in your own words — every figure is computed from this data'
-          : 'every figure is computed from this data';
+        note.textContent = on && aiAnalyst
+          ? 'ask in your own words — about this month or the full year'
+          : on ? 'ask in your own words — every figure is computed from this data'
+               : 'every figure is computed from this data';
       }
+      // Only the analyst sees the year, so only offer a year question with it.
+      if (on && aiAnalyst) addExample('which month had my best sales this year?');
     });
 
     var form = el('form', 'askbox');
@@ -1613,14 +1650,7 @@
 
     var ex = el('div', 'examples');
     ex.appendChild(el('span', 'examples-lbl', 'Try'));
-    [
-      'top 5 outlets by sales',
-      'sales by product group',
-      'how many visits did I make?',
-      'how many km did I travel?',
-      'which city sold the most?',
-      'how many demos converted?'
-    ].forEach(function (t) {
+    function addExample(t) {
       var b = el('button', 'example');
       b.type = 'button';
       b.textContent = t;
@@ -1631,7 +1661,15 @@
         document.getElementById('sec-answer-slot').scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
       ex.appendChild(b);
-    });
+    }
+    [
+      'top 5 outlets by sales',
+      'sales by product group',
+      'how many visits did I make?',
+      'how many km did I travel?',
+      'which city sold the most?',
+      'how many demos converted?'
+    ].forEach(addExample);
     fc.body.appendChild(ex);
 
     // Model picker, rendered only once the server confirms AI is on, so a
