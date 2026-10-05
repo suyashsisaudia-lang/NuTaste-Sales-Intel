@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 
 from . import ask as ask_mod
 from . import ask_sec as ask_sec_mod
+from . import data_sync
 from . import sec_refresh
 from . import users
 from .config import settings
@@ -317,6 +318,10 @@ def refresh_sec_from_source(trigger: str) -> str:
                    f"({len(raw) / 1048576:.1f} MB); default view {newest}")
         _record_refresh(True, message, trigger)
         log.info("Secondary Sales refresh (%s): %s", trigger, message)
+        if settings.sec_auto_push:
+            data_sync.push_in_background(BASE.parent, f"Secondary Sales data refresh ({trigger}): "
+                                         f"{months[0]} to {months[-1]}",
+                                         settings.sec_auto_push_branch)
         return message
     except Exception as exc:
         _record_refresh(False, str(exc)[:400], trigger)
@@ -384,6 +389,15 @@ def robots():
 @app.get("/healthz", response_class=PlainTextResponse)
 def healthz():
     return "ok"
+
+
+@app.get("/healthz/data")
+def healthz_data():
+    """Which Secondary Sales data this copy is serving, so the PC and the hosted
+    copy can be compared without signing in. Timestamps and month names only."""
+    sec = _meta().get("sec", {})
+    return {"secUpdated": sec.get("updated"), "secSource": sec.get("source"),
+            "months": _sec_months()}
 
 
 # Form fields for the one sign-in template (login.html), which serves the

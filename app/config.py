@@ -99,6 +99,10 @@ class Settings:
     # Python ships without tz data. 330 = IST (UTC+05:30), which has no DST.
     sec_refresh_utc_offset_minutes: int = int(os.getenv("SEC_REFRESH_UTC_OFFSET_MINUTES", "330"))
     sec_download_timeout_seconds: float = float(os.getenv("SEC_DOWNLOAD_TIMEOUT_SECONDS", "300"))
+    # After a successful refresh, commit + push the data files so the Render
+    # copy (which deploys from GitHub) catches up. Set on the office PC only.
+    sec_auto_push: bool = _bool("SEC_AUTO_PUSH", False)
+    sec_auto_push_branch: str = os.getenv("SEC_AUTO_PUSH_BRANCH", "main")
 
 
 settings = Settings()
