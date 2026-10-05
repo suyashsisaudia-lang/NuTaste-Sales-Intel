@@ -29,6 +29,10 @@ class Settings:
     secret_key: str = os.getenv("SECRET_KEY", "")
     # where datasets live; mount a persistent volume here in production
     data_dir: str = os.getenv("DATA_DIR", "./data")
+    # Copied to DATA_DIR/credentials.json at startup when that file is missing
+    # (hosts with no persistent disk). /etc/secrets is where Render mounts its
+    # Secret Files. Blank disables it.
+    credentials_seed_file: str = os.getenv("CREDENTIALS_SEED_FILE", "/etc/secrets/credentials.json")
     session_hours: int = int(os.getenv("SESSION_HOURS", "12"))
     admin_session_minutes: int = int(os.getenv("ADMIN_SESSION_MINUTES", "30"))
     login_max_attempts: int = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))

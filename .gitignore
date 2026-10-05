@@ -5,3 +5,4 @@ data/backups/
 data/*.tmp
 data/credentials.json
 initial-passwords-*.csv
+backups/

@@ -61,6 +61,26 @@ signer = URLSafeTimedSerializer(settings.secret_key, salt="nutaste-session")
 SESSION_COOKIE = "nsd_session"
 ADMIN_COOKIE = "nsd_admin"
 
+def _seed_credentials() -> None:
+    """Hosts without a persistent disk (Render Free) start every boot with an
+    empty DATA_DIR, and credentials.json is never in Git or the image. Copy it
+    from the host's secret file when it is missing; an existing file (local
+    run, mounted disk) is never overwritten."""
+    target = DATA_DIR / "credentials.json"
+    source = Path(settings.credentials_seed_file) if settings.credentials_seed_file else None
+    if target.exists() or not (source and source.is_file()):
+        return
+    try:
+        json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.error("Credentials seed %s is not valid JSON; sign-in stays closed: %s", source, e)
+        return
+    shutil.copyfile(source, target)
+    log.info("Seeded %s from %s", target, source)
+
+
+_seed_credentials()
+
 # Per-person logins and the reporting tree. See app/users.py.
 user_store = users.Store(DATA_DIR)
 

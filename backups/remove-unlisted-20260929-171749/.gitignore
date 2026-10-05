@@ -1,7 +1,0 @@
-.env
-__pycache__/
-*.pyc
-data/backups/
-data/*.tmp
-data/credentials.json
-initial-passwords-*.csv
