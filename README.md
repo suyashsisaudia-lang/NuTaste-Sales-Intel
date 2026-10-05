@@ -104,6 +104,8 @@ in version control.
 | `SEC_REFRESH_TIME` | | `11:00` | 24-hour time, in the offset below |
 | `SEC_REFRESH_UTC_OFFSET_MINUTES` | | `330` | 330 = IST. A fixed offset, so it is right on a UTC container too |
 | `SEC_DOWNLOAD_TIMEOUT_SECONDS` | | `300` | how long the workbook download may take |
+| `KEEP_AWAKE_URL` | | `$RENDER_EXTERNAL_URL/healthz` on Render, blank elsewhere | the app requests this URL on a timer so a free Render instance never sleeps. Uses ~744 of the 750 free hours a month. Set to blank to turn off |
+| `KEEP_AWAKE_MINUTES` | | `10` | interval; keep it under Render's ~15-minute idle limit |
 
 The app refuses to start if any of the three required variables is missing,
 rather than falling back to a default password.

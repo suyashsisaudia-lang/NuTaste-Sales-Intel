@@ -38,6 +38,7 @@ from pydantic import BaseModel, Field
 from . import ask as ask_mod
 from . import ask_sec as ask_sec_mod
 from . import data_sync
+from . import keep_awake
 from . import sec_refresh
 from . import users
 from .config import settings
@@ -346,6 +347,26 @@ def _start_sec_scheduler() -> None:
 def _stop_sec_scheduler() -> None:
     if _sec_scheduler:
         _sec_scheduler.stop()
+
+
+# Free Render instances sleep after ~15 idle minutes; see app/keep_awake.py.
+_keep_awake: Optional[keep_awake.KeepAwake] = None
+
+
+@app.on_event("startup")
+def _start_keep_awake() -> None:
+    global _keep_awake
+    if not settings.keep_awake_url:
+        return
+    _keep_awake = keep_awake.KeepAwake(settings.keep_awake_url,
+                                       max(settings.keep_awake_minutes, 1) * 60)
+    _keep_awake.start()
+
+
+@app.on_event("shutdown")
+def _stop_keep_awake() -> None:
+    if _keep_awake:
+        _keep_awake.stop()
 
 
 def _sec_refresh_status() -> str:

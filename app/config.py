@@ -104,6 +104,17 @@ class Settings:
     sec_auto_push: bool = _bool("SEC_AUTO_PUSH", False)
     sec_auto_push_branch: str = os.getenv("SEC_AUTO_PUSH_BRANCH", "main")
 
+    # ---- keep a free Render instance awake (app/keep_awake.py)
+    # Render sets RENDER_EXTERNAL_URL on its own hosts, so this is on there and
+    # off everywhere else without any configuration. Set KEEP_AWAKE_URL to ""
+    # on Render to turn it off.
+    keep_awake_url: str = os.getenv(
+        "KEEP_AWAKE_URL",
+        os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/") + "/healthz"
+        if os.getenv("RENDER_EXTERNAL_URL") else "")
+    # Under Render's ~15-minute idle limit, with margin for a slow request.
+    keep_awake_minutes: float = float(os.getenv("KEEP_AWAKE_MINUTES", "10"))
+
 
 settings = Settings()
 
