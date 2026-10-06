@@ -959,6 +959,17 @@ def _sec_year_summary(viewer: users.Viewer, sec: dict, person: str) -> Optional[
 # owner asked for an analyst rather than a translator. Exact subtotals are sent
 # alongside the rows and the model is told to quote them, which narrows the gap
 # without closing it, and every answer is labelled in the UI.
+def _unescape_model_text(text: str) -> str:
+    """Turn line breaks a model double-escaped back into real ones.
+
+    In JSON mode some Gemini models return "\\n" — a backslash and an n — where
+    a newline was meant. The page renders markdown line by line, so without
+    this the whole answer collapses into one paragraph with literal "\\n" in
+    it, and bullet asterisks are misread as italics.
+    """
+    return text.replace("\\r\\n", "\n").replace("\\n", "\n")
+
+
 @app.post("/api/ask/sec/analyst")
 def api_ask_sec_analyst(request: Request, body: AskSecRequest):
     viewer = _viewer(request)
@@ -1003,7 +1014,7 @@ def api_ask_sec_analyst(request: Request, body: AskSecRequest):
         log.warning("Secondary analyst call failed, falling back: %s", exc)
         return {"ok": False, "reason": "quota" if exc.is_quota else "error"}
 
-    answer = str(raw.get("answer", "")).strip()
+    answer = _unescape_model_text(str(raw.get("answer", ""))).strip()
     if not answer:
         # An empty answer is a failed call, not an analysis. Say so, so the
         # browser falls back rather than rendering a blank card.
@@ -1011,7 +1022,7 @@ def api_ask_sec_analyst(request: Request, body: AskSecRequest):
 
     return {"ok": True,
             "answer": answer[:settings.ask_analyst_max_chars],
-            "caveat": str(raw.get("caveat", "")).strip()[:400],
+            "caveat": _unescape_model_text(str(raw.get("caveat", ""))).strip()[:400],
             "exactOnly": bool(raw.get("usedExactTotals")),
             "provider": _provider.name, "model": used}
 
@@ -1064,7 +1075,8 @@ def api_narrate(request: Request, body: NarrateRequest):
         log.info("narration unavailable (%s); the computed answer stands alone", exc)
         return {"ok": False, "reason": "quota" if exc.is_quota else "error"}
 
-    answer = ask_mod.verify_narrative(str(raw.get("answer", "")), result, body.question)
+    answer = ask_mod.verify_narrative(_unescape_model_text(str(raw.get("answer", ""))),
+                                      result, body.question)
     if answer is None:
         log.warning("narrative quoted a figure not in the result; discarded (model=%s)", used)
         return {"ok": False, "reason": "unverified"}
