@@ -67,6 +67,10 @@ DEFAULT_ALIASES = {
     "praveensingh": "EM481",       # Praveen Kumar Singh
     "atulborse": "EM454",          # Atul Ravindra Borse
     "amarendrakumarsharma": "EM196",  # Amrendra Kumar Sharma
+    "sonalipawar": "EM445",        # Pawar Sonali Shahaji
+    "anishsen": "EM507",           # Anish Kumar
+    "nikhilsharma": "EM499",       # Nikhil Kumar Sharma
+    "mrramdasyadav": "EM526",      # Ramdas Yadav
 }
 
 MIN_PASSWORD_CHARS = 10
