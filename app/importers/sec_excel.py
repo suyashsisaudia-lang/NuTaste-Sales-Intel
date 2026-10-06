@@ -19,7 +19,10 @@ Row encodings (positional, to keep the payload small):
     leads[i]    = [personIx, day, buyerIx, cityIx, lstageIx, statusIx, ltypeIx, value]
     travel[i]   = [personIx, day, workingKm, totalKm]
     expenses[i] = [personIx, day, regionIx, amount]
-    sales[i]    = [personIx, day, buyerIx, pgroupIx, cityIx, qty, value]
+    sales[i]    = [personIx, day, buyerIx, pgroupIx, cityIx, qty, value, itemIx, pcatIx]
+
+The two item columns were added after the first five: files written before them
+end at `value`, and readers treat a missing item or category as blank.
 """
 
 import calendar
@@ -97,7 +100,6 @@ def _num(v: Any) -> float:
         return float(s)
     except ValueError:
         return 0.0
-
 
 class Pool:
     """Deduplicating string table; rows store indices into it."""
@@ -283,7 +285,7 @@ def _build(parsed: Dict[str, Any], y: int, m: int) -> Dict[str, Any]:
 
     pools = {k: Pool() for k in
              ("vtype", "city", "channel", "buyer", "region", "stage", "status",
-              "lstage", "ltype", "pgroup")}
+              "lstage", "ltype", "pgroup", "item", "pcat")}
     out: Dict[str, List] = {k: [] for k in
                             ("visits", "demos", "leads", "travel", "expenses", "sales")}
 
@@ -300,6 +302,8 @@ def _build(parsed: Dict[str, Any], y: int, m: int) -> Dict[str, Any]:
             pools["city"].add(_get(row, ix, "City")),
             round(_num(_get(row, ix, "Qty")), 2),
             round(_num(_get(row, ix, "Total DB Selling Value")), 2),
+            pools["item"].add(_get(row, ix, "Product Name")),
+            pools["pcat"].add(_get(row, ix, "Product Cat")),
         ])
 
     # ------------------------------------------------------------ visits

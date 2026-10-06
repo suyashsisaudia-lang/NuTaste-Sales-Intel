@@ -25,7 +25,9 @@
   var LD = { P: 0, DAY: 1, BUYER: 2, CITY: 3, STAGE: 4, STATUS: 5, TYPE: 6, VAL: 7 };
   var TR = { P: 0, DAY: 1, WORK: 2, TOTAL: 3 };
   var EX = { P: 0, DAY: 1, REGION: 2, AMT: 3 };
-  var SL = { P: 0, DAY: 1, BUYER: 2, PGROUP: 3, CITY: 4, QTY: 5, VAL: 6 };
+  // ITEM and PCAT came later; a file written before them simply ends at VAL,
+  // and pv() reads the missing index as blank.
+  var SL = { P: 0, DAY: 1, BUYER: 2, PGROUP: 3, CITY: 4, QTY: 5, VAL: 6, ITEM: 7, PCAT: 8 };
 
   // ---------------------------------------------------------------- index
   var byPerson = {};
@@ -179,6 +181,7 @@
       km: 0, workKm: 0, travelDays: d.travel.length,
       expense: 0,
       salesValue: 0, salesQty: 0, byProduct: {}, byBuyer: {},
+      byItem: {}, byCat: {},
       outlets: {}
     };
     d.visits.forEach(function (r) {
@@ -206,6 +209,13 @@
       s.byProduct[p] = (s.byProduct[p] || 0) + r[SL.VAL];
       var b = pv('buyer', r[SL.BUYER]);
       s.byBuyer[b] = (s.byBuyer[b] || 0) + r[SL.VAL];
+      var c = pv('pcat', r[SL.PCAT]);
+      s.byCat[c] = (s.byCat[c] || 0) + r[SL.VAL];
+      var it = pv('item', r[SL.ITEM]);
+      var e = s.byItem[it] || (s.byItem[it] = { value: 0, qty: 0, cat: c, outlets: {} });
+      e.value += r[SL.VAL];
+      e.qty += r[SL.QTY];
+      e.outlets[r[SL.BUYER]] = 1;
     });
     s.activeDays = Object.keys(s.visitDays).length;
     s.outletCount = Object.keys(s.outlets).length;
@@ -309,20 +319,48 @@
     }
     host.appendChild(bc.root);
 
+    // ---- top items by sales value
+    var itemVals = {};
+    Object.keys(s.byItem).forEach(function (k) { itemVals[k] = s.byItem[k].value; });
+    var items = topEntries(itemVals, 10);
+    var ic = card('Top items by secondary sales', items.length + ' of ' +
+      Object.keys(itemVals).length + ' shown');
+    if (!items.length) {
+      ic.body.appendChild(el('p', 'card-note', 'No secondary sales recorded for this person.'));
+    } else {
+      var imax = items[0][1];
+      var ib = el('div', 'bars');
+      items.forEach(function (t) {
+        var e = s.byItem[t[0]];
+        ib.appendChild(barRow(t[0], t[1], imax, 'var(--ok)',
+          t[0] + ' · ' + money(t[1]) + ' · ' + Math.round(e.qty).toLocaleString('en-IN') +
+          ' units · ' + pctOf(t[1], s.salesValue) + ' of sales'));
+      });
+      ic.body.appendChild(ib);
+      ic.body.appendChild(el('p', 'card-note',
+        'Every item, with units and outlets, is under Activity detail.'));
+    }
+    host.appendChild(ic.root);
+
     // ---- product mix + effort
     var g2 = el('div', 'grid-2');
-    var pc = card('Product groups', 'share of sales value');
-    var prods = topEntries(s.byProduct, 8);
-    if (!prods.length) {
+    var pc = card('Product categories', 'share of sales value');
+    var cats = topEntries(s.byCat, 10);
+    if (!cats.length) {
       pc.body.appendChild(el('p', 'card-note', 'No sales to break down.'));
     } else {
-      var pmax = prods[0][1];
+      var pmax = cats[0][1];
       var pb = el('div', 'bars');
-      prods.forEach(function (p) {
+      cats.forEach(function (p) {
         pb.appendChild(barRow(p[0], p[1], pmax, 'var(--sev-2)',
           p[0] + ' · ' + money(p[1]) + ' · ' + pctOf(p[1], s.salesValue)));
       });
       pc.body.appendChild(pb);
+      // The two product groups sit above the categories; kept as one line.
+      var groups = topEntries(s.byProduct, 8);
+      pc.body.appendChild(el('p', 'card-note', 'Product groups: ' + groups.map(function (p) {
+        return p[0] + ' ' + money(p[1]) + ' (' + pctOf(p[1], s.salesValue) + ')';
+      }).join(' · ')));
     }
     g2.appendChild(pc.root);
 
@@ -344,6 +382,26 @@
     var host = document.getElementById('sec-activity');
     host.textContent = '';
     var d = person.d;
+
+    // ---- items sold, every one of them, largest first
+    var itemKeys = Object.keys(s.byItem).sort(function (a, b) {
+      return s.byItem[b].value - s.byItem[a].value;
+    });
+    var sc = card('Items sold', itemKeys.length + ' item' + (itemKeys.length === 1 ? '' : 's') +
+      ' in ' + periodLabel());
+    if (!itemKeys.length) {
+      sc.body.appendChild(el('p', 'card-note', 'No secondary sales recorded.'));
+    } else {
+      var irows = itemKeys.map(function (k) {
+        var e = s.byItem[k];
+        return [k, e.cat, Math.round(e.qty).toLocaleString('en-IN'),
+                money(e.value), pctOf(e.value, s.salesValue),
+                String(Object.keys(e.outlets).length)];
+      });
+      sc.body.appendChild(table(['Item', 'Category', 'Units', 'Value', 'Share', 'Outlets'],
+        irows, 2));
+    }
+    host.appendChild(sc.root);
 
     // ---- visits
     var vc = card('Visits', d.visits.length + ' in ' + periodLabel());
@@ -424,12 +482,14 @@
     sales: {
       key: 'sales', label: 'secondary sales', one: 'sale line', many: 'sale lines',
       day: SL.DAY,
-      fields: { customer: SL.BUYER, city: SL.CITY, productGroup: SL.PGROUP },
-      pools: { customer: 'buyer', city: 'city', productGroup: 'pgroup' },
+      fields: { customer: SL.BUYER, city: SL.CITY, productGroup: SL.PGROUP,
+                item: SL.ITEM, productCategory: SL.PCAT },
+      pools: { customer: 'buyer', city: 'city', productGroup: 'pgroup',
+               item: 'item', productCategory: 'pcat' },
       metricCol: { value: SL.VAL, quantity: SL.QTY }, defaultMetric: 'value',
-      cols: ['Date', 'Outlet', 'Product group', 'City', 'Qty', 'Value'], numFrom: 4,
+      cols: ['Date', 'Outlet', 'Item', 'City', 'Qty', 'Value'], numFrom: 4,
       row: function (r) {
-        return [dayLabel(r[SL.DAY]), pv('buyer', r[SL.BUYER]), pv('pgroup', r[SL.PGROUP]),
+        return [dayLabel(r[SL.DAY]), pv('buyer', r[SL.BUYER]), pv('item', r[SL.ITEM]),
                 pv('city', r[SL.CITY]), r[SL.QTY].toLocaleString('en-IN'), money(r[SL.VAL])];
       }
     },
@@ -500,10 +560,12 @@
   var FIELD_LABEL = {
     customer: 'customer', city: 'city', channel: 'channel', visitType: 'visit type',
     region: 'region', stage: 'stage', status: 'status', leadType: 'lead type',
-    productGroup: 'product group', day: 'day'
+    productGroup: 'product group', item: 'item', productCategory: 'product category',
+    day: 'day'
   };
   var SEC_FILTER_FIELDS = ['customer', 'city', 'channel', 'visitType', 'region',
-                           'stage', 'status', 'leadType', 'productGroup'];
+                           'stage', 'status', 'leadType', 'productGroup',
+                           'item', 'productCategory'];
 
   function metricFmt(metric) {
     if (metric === 'count') return function (n) { return Math.round(n).toLocaleString('en-IN'); };
@@ -844,7 +906,8 @@
         : spec.buyerIds.length + ' matching customers');
     }
 
-    ['city', 'channel', 'visitType', 'region', 'stage', 'status', 'leadType', 'productGroup']
+    ['city', 'channel', 'visitType', 'region', 'stage', 'status', 'leadType', 'productGroup',
+     'item', 'productCategory']
       .forEach(function (field) {
         var v = spec[field];
         if (v && typeof v.ix === 'number') {
@@ -894,7 +957,9 @@
     ['expenses', /\b(expense|expenses|claim|claims|reimbursement|spend|cost)\b/i]
   ];
   var GROUP_WORDS = [
-    ['productGroup', /\b(product|products|sku|skus|category|categories|product group)\b/i],
+    ['productGroup', /\b(product groups?)\b/i],
+    ['productCategory', /\b(product categor(?:y|ies)|categor(?:y|ies))\b/i],
+    ['item', /\b(items?|products?|skus?)\b/i],
     ['city', /\b(city|cities|town|towns|location|locations)\b/i],
     ['channel', /\b(channel|channels)\b/i],
     ['visitType', /\b(visit type|type of visit|call type)\b/i],
@@ -1585,6 +1650,8 @@
       f: { dataset: 'sales', metric: 'value', groupBy: 'customer', chips: ['secondary sales', 'by customer'] } },
     { id: 'products', label: 'How do my sales split by product group?',
       f: { dataset: 'sales', metric: 'value', groupBy: 'productGroup', chips: ['secondary sales', 'by product group'] } },
+    { id: 'items', label: 'Which items sold the most?',
+      f: { dataset: 'sales', metric: 'value', groupBy: 'item', chips: ['secondary sales', 'by item'] } },
     { id: 'cities', label: 'Where are my sales coming from?',
       f: { dataset: 'sales', metric: 'value', groupBy: 'city', chips: ['secondary sales', 'by city'] } },
     { id: 'visit-types', label: 'What kind of visits am I making?',
@@ -1664,7 +1731,8 @@
     }
     [
       'top 5 outlets by sales',
-      'sales by product group',
+      'top 10 items by sales',
+      'sales by product category',
       'how many visits did I make?',
       'how many km did I travel?',
       'which city sold the most?',

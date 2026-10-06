@@ -43,7 +43,9 @@ DM = {"P": 0, "DAY": 1, "BUYER": 2, "REGION": 3, "STAGE": 4, "STATUS": 5, "CONV"
 LD = {"P": 0, "DAY": 1, "BUYER": 2, "CITY": 3, "STAGE": 4, "STATUS": 5, "TYPE": 6, "VAL": 7}
 TR = {"P": 0, "DAY": 1, "WORK": 2, "TOTAL": 3}
 EX = {"P": 0, "DAY": 1, "REGION": 2, "AMT": 3}
-SL = {"P": 0, "DAY": 1, "BUYER": 2, "PGROUP": 3, "CITY": 4, "QTY": 5, "VAL": 6}
+# ITEM and PCAT were added later; files written before them end at VAL.
+SL = {"P": 0, "DAY": 1, "BUYER": 2, "PGROUP": 3, "CITY": 4, "QTY": 5, "VAL": 6,
+      "ITEM": 7, "PCAT": 8}
 
 # Which filter fields and groupings each table actually carries. A spec field
 # the chosen table has no column for is dropped in validation rather than
@@ -64,8 +66,9 @@ FIELDS: Dict[str, Dict[str, Any]] = {
     "expenses": {"filters": {"region"},
                  "groups": {"region", "day"},
                  "metrics": {"count", "value"}, "default_metric": "value"},
-    "sales":    {"filters": {"customers", "city", "productGroup"},
-                 "groups": {"customer", "city", "productGroup", "day"},
+    "sales":    {"filters": {"customers", "city", "productGroup", "item", "productCategory"},
+                 "groups": {"customer", "city", "productGroup", "item", "productCategory",
+                            "day"},
                  "metrics": {"count", "value", "quantity"}, "default_metric": "value"},
 }
 
@@ -79,12 +82,19 @@ POOL_OF = {
     "status": "status",
     "leadType": "ltype",
     "productGroup": "pgroup",
+    "item": "item",
+    "productCategory": "pcat",
 }
 
 
 # --------------------------------------------------------------------- context
 def _rows_for(sec: dict, key: str, person_index: int) -> List[list]:
     return [r for r in (sec.get(key) or []) if r and r[0] == person_index]
+
+
+def _cell(r: list, ix: int) -> Any:
+    """A column that older month files do not carry reads as blank."""
+    return r[ix] if ix < len(r) else None
 
 
 def _pool_values(pool: List[str], indices) -> List[str]:
@@ -141,6 +151,10 @@ def build_context(sec: dict, person_index: int) -> Optional[dict]:
                                    {r[V["TYPE"]] for r in rows["visits"]})[:MAX_SMALL_POOL],
         "productGroups": _pool_values(pool("pgroup"),
                                       {r[SL["PGROUP"]] for r in rows["sales"]})[:MAX_SMALL_POOL],
+        "items": _pool_values(pool("item"),
+                              {_cell(r, SL["ITEM"]) for r in rows["sales"]})[:MAX_NAMES_IN_PROMPT],
+        "productCategories": _pool_values(pool("pcat"),
+                                          {_cell(r, SL["PCAT"]) for r in rows["sales"]})[:MAX_SMALL_POOL],
         "regions": _pool_values(pool("region"), regions)[:MAX_SMALL_POOL],
         "demoStages": _pool_values(pool("stage"),
                                    {r[DM["STAGE"]] for r in rows["demos"]})[:MAX_SMALL_POOL],
@@ -162,7 +176,7 @@ def has_any_activity(ctx: dict) -> bool:
 ANALYST_MAX_ROWS_PER_TABLE = 400
 
 ANALYST_COLUMNS = {
-    "sales":    "day,outlet,product_group,city,qty,value_rs",
+    "sales":    "day,outlet,item,category,product_group,city,qty,value_rs",
     "visits":   "day,outlet,visit_type,city,channel,minutes",
     "demos":    "day,customer,region,stage,status,converted,est_value_rs",
     "leads":    "day,company,city,stage,status,lead_type,est_value_rs",
@@ -183,7 +197,9 @@ def _table_rows(rows: List[list], pools: dict, kind: str) -> List[str]:
     out = []
     for r in rows:
         if kind == "sales":
-            cells = [r[SL["DAY"]], lab("buyer", r[SL["BUYER"]]), lab("pgroup", r[SL["PGROUP"]]),
+            cells = [r[SL["DAY"]], lab("buyer", r[SL["BUYER"]]),
+                     lab("item", _cell(r, SL["ITEM"])), lab("pcat", _cell(r, SL["PCAT"])),
+                     lab("pgroup", r[SL["PGROUP"]]),
                      lab("city", r[SL["CITY"]]), r[SL["QTY"]], r[SL["VAL"]]]
         elif kind == "visits":
             cells = [r[V["DAY"]], lab("buyer", r[V["BUYER"]]), lab("vtype", r[V["TYPE"]]),
@@ -226,6 +242,30 @@ def _breakdown(rows: List[list], key_ix: int, val_ix: Optional[int],
     return out
 
 
+def _items(rows: List[list], pools: dict) -> List[tuple]:
+    """Exact per-item value, units and line count, largest value first."""
+    agg: Dict[str, List[float]] = {}
+    for r in rows:
+        label = _label(pools, "item", _cell(r, SL["ITEM"])) or "—"
+        slot = agg.setdefault(label, [0.0, 0.0, 0])
+        slot[0] += r[SL["VAL"]] or 0
+        slot[1] += r[SL["QTY"]] or 0
+        slot[2] += 1
+    out = [(k, round(v[0], 2), round(v[1], 2), int(v[2])) for k, v in agg.items()]
+    out.sort(key=lambda t: (-t[1], -t[2]))
+    return out
+
+
+def _fmt_items(items: List[tuple], limit: int) -> List[str]:
+    out = [f"    {name}: ₹{_inr(value)}, {_inr(qty)} units across {n} line(s)"
+           for name, value, qty, n in items[:limit]]
+    if len(items) > limit:
+        rest = items[limit:]
+        out.append(f"    ...and {len(rest)} more item(s), ₹{_inr(sum(t[1] for t in rest))} "
+                   f"between them")
+    return out
+
+
 def build_analyst_payload(sec: dict, person_index: int) -> Optional[dict]:
     """This person's real rows, plus the subtotals the model should quote.
 
@@ -256,6 +296,9 @@ def build_analyst_payload(sec: dict, person_index: int) -> Optional[dict]:
             "lines": len(rows["sales"]),
             "by_outlet": _breakdown(rows["sales"], SL["BUYER"], SL["VAL"], pools, "buyer"),
             "by_product_group": _breakdown(rows["sales"], SL["PGROUP"], SL["VAL"], pools, "pgroup"),
+            "by_item": _items(rows["sales"], pools),
+            "by_category": _breakdown([r for r in rows["sales"] if len(r) > SL["PCAT"]],
+                                      SL["PCAT"], SL["VAL"], pools, "pcat"),
             "by_city": _breakdown(rows["sales"], SL["CITY"], SL["VAL"], pools, "city"),
         },
         "visits": {
@@ -307,6 +350,7 @@ def build_analyst_payload(sec: dict, person_index: int) -> Optional[dict]:
 YEAR_MAX_OUTLETS = 60
 YEAR_MAX_CITIES = 20
 YEAR_MAX_VISITED = 30
+YEAR_MAX_ITEMS = 60
 
 
 def _label(pools: dict, name: str, ix: Any) -> str:
@@ -347,6 +391,8 @@ def build_year_summary(months: List[tuple], person: str,
     per_month: List[dict] = []
     outlets: Dict[str, dict] = {}
     pgroups: Dict[str, Dict[str, float]] = {}
+    pcats: Dict[str, Dict[str, float]] = {}
+    items: Dict[str, dict] = {}
     cities: Dict[str, List[float]] = {}
     visited: Dict[str, List[float]] = {}
     demo_stage: Dict[str, List[float]] = {}
@@ -376,6 +422,15 @@ def build_year_summary(months: List[tuple], person: str,
             pg = _label(pools, "pgroup", r[SL["PGROUP"]]) or "—"
             pgroups.setdefault(pg, {})
             pgroups[pg][month] = pgroups[pg].get(month, 0) + (r[SL["VAL"]] or 0)
+            pc = _label(pools, "pcat", _cell(r, SL["PCAT"])) or "—"
+            pcats.setdefault(pc, {})
+            pcats[pc][month] = pcats[pc].get(month, 0) + (r[SL["VAL"]] or 0)
+            it = items.setdefault(_label(pools, "item", _cell(r, SL["ITEM"])) or "—",
+                                  {"value": 0.0, "qty": 0.0, "months": set(), "outlets": set()})
+            it["value"] += r[SL["VAL"]] or 0
+            it["qty"] += r[SL["QTY"]] or 0
+            it["months"].add(month)
+            it["outlets"].add(buyer)
             _tally(cities, _label(pools, "city", r[SL["CITY"]]), r[SL["VAL"]])
         seen = set()
         for r in rows["visits"]:
@@ -436,6 +491,13 @@ def build_year_summary(months: List[tuple], person: str,
         "productGroups": sorted(
             ((pg, round(sum(v.values()), 2), {m: round(x, 2) for m, x in v.items()})
              for pg, v in pgroups.items()), key=lambda t: -t[1]),
+        "categories": sorted(
+            ((pc, round(sum(v.values()), 2), {m: round(x, 2) for m, x in v.items()})
+             for pc, v in pcats.items()), key=lambda t: -t[1]),
+        "items": sorted(
+            ((name, round(i["value"], 2), round(i["qty"], 2), len(i["months"]),
+              max(i["months"]), len(i["outlets"])) for name, i in items.items()),
+            key=lambda t: -t[1]),
         "cities": _ranked(cities),
         "visited": _ranked(visited),
         "demoStage": _ranked(demo_stage), "demoStatus": _ranked(demo_status),
@@ -498,6 +560,20 @@ def _year_lines(y: dict) -> List[str]:
     for pg, total, by_m in y["productGroups"]:
         months = ", ".join(f"{month_name(m)} ₹{_inr(by_m[m])}" for m in sorted(by_m))
         L.append(f"    {pg}: ₹{_inr(total)} | {months}")
+    L.append("")
+    L.append("YEAR SALES BY PRODUCT CATEGORY (year total, then month by month):")
+    for pc, total, by_m in y["categories"]:
+        months = ", ".join(f"{month_name(m)} ₹{_inr(by_m[m])}" for m in sorted(by_m))
+        L.append(f"    {pc}: ₹{_inr(total)} | {months}")
+    L.append("")
+    L.append("YEAR SALES BY ITEM (largest first):")
+    for name, value, qty, n_months, last_m, n_outlets in y["items"][:YEAR_MAX_ITEMS]:
+        L.append(f"    {name}: ₹{_inr(value)}, {_inr(qty)} units; sold in {n_months} month(s), "
+                 f"last {month_name(last_m)}; to {n_outlets} outlet(s)")
+    rest = y["items"][YEAR_MAX_ITEMS:]
+    if rest:
+        L.append(f"    ...and {len(rest)} more item(s), ₹{_inr(sum(r[1] for r in rest))} "
+                 f"between them")
     L += ["", "YEAR SALES BY CITY:", *_fmt_breakdown(y["cities"], "₹", YEAR_MAX_CITIES),
           "", "YEAR VISITS BY OUTLET:", *_fmt_breakdown(y["visited"], "count", YEAR_MAX_VISITED),
           "", "YEAR DEMOS by stage:", *_fmt_breakdown(y["demoStage"], "₹"),
@@ -632,6 +708,8 @@ def build_analyst_prompt(payload: dict, question: str) -> str:
         f"{e['sales']['lines']} sale lines",
         "  by outlet:", *_fmt_breakdown(e["sales"]["by_outlet"], "₹"),
         "  by product group:", *_fmt_breakdown(e["sales"]["by_product_group"], "₹"),
+        "  by product category:", *_fmt_breakdown(e["sales"]["by_category"], "₹"),
+        "  by item:", *_fmt_items(e["sales"]["by_item"], 60),
         "  by city:", *_fmt_breakdown(e["sales"]["by_city"], "₹"),
         "",
         f"VISITS: {e['visits']['lines']} visits, {_inr(e['visits']['minutes'])} minutes total",
@@ -708,6 +786,9 @@ SPEC_SCHEMA = {
         "status": {"type": "STRING", "description": "Exactly one status from the provided list."},
         "leadType": {"type": "STRING", "description": "Exactly one lead type from the provided list."},
         "productGroup": {"type": "STRING", "description": "Exactly one product group from the provided list."},
+        "item": {"type": "STRING", "description": "Exactly one item (product name) from the provided list."},
+        "productCategory": {"type": "STRING",
+                            "description": "Exactly one product category from the provided list."},
         "converted": {"type": "BOOLEAN",
                       "description": "Demos only. True for converted demos, false for "
                                      "demos not converted."},
@@ -716,7 +797,7 @@ SPEC_SCHEMA = {
         "groupBy": {
             "type": "STRING",
             "enum": ["customer", "city", "channel", "visitType", "region", "stage",
-                     "status", "leadType", "productGroup", "day"],
+                     "status", "leadType", "productGroup", "item", "productCategory", "day"],
             "description": "Break the answer down by this. Use it for 'which/by/per/top' "
                            "questions.",
         },
@@ -755,7 +836,8 @@ Hard rules:
   question that needs two of them at once cannot be answered, so say so in
   `unsupported` and pick the table the question leads with.
 - Only ever use customer, city, channel, visit type, region, stage, status, lead
-  type and product group values copied exactly from the lists you are given. If a
+  type, product group, product category and item values copied exactly from the
+  lists you are given. If a
   value the question names is not in the list, leave that field empty and say so
   in `unsupported`.
 - The data covers ONE person and ONE calendar month. It has NO targets, NO
@@ -764,8 +846,9 @@ Hard rules:
   in `refusal` and leave the filters empty.
 - Omit any field the question does not constrain. Do not guess.
 - Set `groupBy` whenever the question asks which customer, city, product group,
-  visit type, channel, region, stage, status or day — that is what turns a single
-  total into a ranked breakdown.
+  product category, item, visit type, channel, region, stage, status or day — that
+  is what turns a single total into a ranked breakdown. "Product", "item" and
+  "SKU" mean item; "category" means product category.
 - Set `superlative` for a question about one record ("my biggest outlet"), and
   `topN` only when the question names an explicit count.
 """
@@ -783,7 +866,8 @@ def build_prompt(ctx: dict, question: str) -> str:
         f"days are 1-31 within it).",
         "",
         "Rows this person has, by table:",
-        f"  sales: {c['sales']} (outlet, product group, city, quantity, value)",
+        f"  sales: {c['sales']} (outlet, item, product category, product group, city, "
+        f"quantity, value)",
         f"  visits: {c['visits']} (outlet, visit type, city, channel, duration in minutes)",
         f"  demos: {c['demos']} (customer, region, stage, status, converted yes/no, value)",
         f"  leads: {c['leads']} (company, city, stage, status, lead type, value)",
@@ -794,6 +878,8 @@ def build_prompt(ctx: dict, question: str) -> str:
         _listing("Channels", ctx["channels"]),
         _listing("Visit types", ctx["visitTypes"]),
         _listing("Product groups", ctx["productGroups"]),
+        _listing("Product categories", ctx["productCategories"]),
+        _listing("Items", ctx["items"]),
         _listing("Regions", ctx["regions"]),
         _listing("Demo stages", ctx["demoStages"]),
         _listing("Lead stages", ctx["leadStages"]),
@@ -881,6 +967,7 @@ def validate_spec(raw: dict, ctx: dict) -> dict:
         "visitType": ctx["visitTypes"], "region": ctx["regions"],
         "status": ctx["statuses"], "leadType": ctx["leadTypes"],
         "productGroup": ctx["productGroups"],
+        "item": ctx["items"], "productCategory": ctx["productCategories"],
     }
     for field, pool_name in POOL_OF.items():
         if field not in shape["filters"]:
@@ -940,7 +1027,8 @@ def validate_spec(raw: dict, ctx: dict) -> dict:
 # these the question landed nowhere. Mirrors SEC_FILTER_KEYS in
 # static/secondary.js.
 NARROWING_KEYS = ("buyerIds", "city", "channel", "visitType", "region", "stage",
-                  "status", "leadType", "productGroup", "converted",
+                  "status", "leadType", "productGroup", "item", "productCategory",
+                  "converted",
                   "dayFrom", "dayTo", "groupBy", "sort", "topN", "countOnly",
                   "superlative")
 
