@@ -3,7 +3,10 @@
  "imported": "2026-09-29 17:31:44",
  "fullView": [
   "CN005",
-  "EXT001"
+  "EXT001",
+  "EXT002",
+  "EXT003",
+  "EXT004"
  ],
  "aliases": {
   "amarendrakumarsharma": "EM196",
@@ -622,6 +625,36 @@
   "EXT001": {
    "name": "Suyash Sisaudia",
    "email": "suyash.sisaudia@nutasteworld.com",
+   "status": "Existing",
+   "manager": "",
+   "designation": "",
+   "location": "",
+   "subdept": "",
+   "manual": true
+  },
+  "EXT002": {
+   "name": "Lalit Sisaudia",
+   "email": "lalit.sisaudia@nutasteworld.com",
+   "status": "Existing",
+   "manager": "",
+   "designation": "",
+   "location": "",
+   "subdept": "",
+   "manual": true
+  },
+  "EXT003": {
+   "name": "Divya Singh",
+   "email": "divya.singh@nutasteworld.com",
+   "status": "Existing",
+   "manager": "",
+   "designation": "",
+   "location": "",
+   "subdept": "",
+   "manual": true
+  },
+  "EXT004": {
+   "name": "M Bajaj",
+   "email": "bajajm@nutasteworld.com",
    "status": "Existing",
    "manager": "",
    "designation": "",
