@@ -389,9 +389,11 @@ def _build(parsed: Dict[str, Any], y: int, m: int) -> Dict[str, Any]:
     # Everyone enabled on the current employee list is listed every month, so a
     # person with no rows of their own (a manager whose name is only in the
     # supervisor / FPR 2 columns) gets a "No activity" page instead of vanishing.
-    # Disabled accounts appear only in months where they have activity.
+    # Disabled accounts, and Channelier "Administrator" logins (back-office
+    # users, not salespeople), appear only in months where they have activity.
     def enabled(name: str) -> bool:
-        return (roster.get(name) or {}).get("status") == "enabled"
+        r = roster.get(name) or {}
+        return r.get("status") == "enabled" and r.get("designation", "").lower() != "administrator"
 
     for name in roster:
         if enabled(name) and name not in people_ix:
