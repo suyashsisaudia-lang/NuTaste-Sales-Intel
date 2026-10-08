@@ -94,11 +94,9 @@ def _to_float(v: Any) -> float:
     return -f if neg else f
 
 
-def _bucket_index(due: Optional[dt.date], as_at: dt.date) -> int:
-    """Which ageing bucket a line falls in, computed fresh from the due date."""
-    if due is None:
-        return 0
-    overdue = (as_at - due).days
+def bucket_for_days(overdue: int) -> int:
+    """Which ageing bucket a number of days overdue falls in (0 = Not Due).
+    Shared with the Business Central API importer so both use one set of bounds."""
     if overdue <= 0:
         return 0
     for i, hi in enumerate(BUCKET_MAX):
@@ -107,6 +105,13 @@ def _bucket_index(due: Optional[dt.date], as_at: dt.date) -> int:
         if overdue <= hi:
             return i
     return len(BUCKET_LABELS) - 1
+
+
+def _bucket_index(due: Optional[dt.date], as_at: dt.date) -> int:
+    """Which ageing bucket a line falls in, computed fresh from the due date."""
+    if due is None:
+        return 0
+    return bucket_for_days((as_at - due).days)
 
 
 def _load_config(path: Path) -> Dict[str, List[str]]:

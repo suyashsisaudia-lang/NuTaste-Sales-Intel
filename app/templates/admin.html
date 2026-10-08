@@ -95,6 +95,8 @@
         <dt>Total balance</dt><dd>₹ {{ ar_total }}</dd>
         <dt>Last updated</dt><dd>{{ ar_updated }}</dd>
         <dt>Source</dt><dd>{{ ar_source }}</dd>
+        <dt>Auto-refresh</dt><dd>{{ ar_refresh_schedule }}</dd>
+        <dt>Last refresh</dt><dd>{{ ar_refresh_last }}</dd>
       </dl>
       <form method="post" action="/admin/upload" enctype="multipart/form-data">
         <input type="hidden" name="kind" value="ar">
@@ -106,6 +108,11 @@
         <a class="dl" href="/admin/download/ar">download current JSON</a>
       </form>
       <p class="note">Ageing buckets are recomputed from Due Date against the report date during import. Column names are matched using <code>config/ar_columns.json</code>; the import is rejected if a required column cannot be found.</p>
+      <form method="post" action="/admin/refresh-ar"
+            onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Refreshing…';">
+        <button type="submit" {{ ar_api_disabled }}>Refresh now from Business Central</button>
+      </form>
+      <p class="note">Runs automatically every day at 11:00 IST, and on demand here. Pulls the AgedReceivables API and replaces the dataset. Each line is bucketed by the API's total overdue days (e.g. 33 days → 32-62 Days). Needs <code>BC_AR_API_URL</code>, <code>BC_API_USERNAME</code> and <code>BC_API_PASSWORD</code>.</p>
     </section>
 
     <section class="card">

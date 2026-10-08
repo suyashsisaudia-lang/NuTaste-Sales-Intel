@@ -1,6 +1,9 @@
 """
 Weekly Secondary Sales refresh from a SharePoint / OneDrive share link.
 
+The Schedule and Scheduler below are also used for the daily receivables
+refresh from Business Central (main.py, app/ar_refresh.py).
+
 This module only fetches bytes and decides *when* to run. Converting and
 writing the dataset stays in main.py, so a scheduled refresh goes through the
 exact same importer, validation and backup path as a manual upload.
@@ -67,11 +70,14 @@ def download(url: str, timeout: float, max_bytes: int) -> bytes:
 
 # ---------------------------------------------------------------- schedule
 class Schedule:
-    def __init__(self, weekday: int, hhmm: str, utc_offset_minutes: int):
-        if not 0 <= weekday <= 6:
+    """Weekly on `weekday` (0 = Monday), or daily when `weekday` is None."""
+
+    def __init__(self, weekday: Optional[int], hhmm: str, utc_offset_minutes: int):
+        if weekday is not None and not 0 <= weekday <= 6:
             raise ValueError("SEC_REFRESH_WEEKDAY must be 0 (Monday) to 6 (Sunday)")
         hour, minute = (int(p) for p in hhmm.split(":"))
         self.weekday, self.hour, self.minute = weekday, hour, minute
+        self.period = timedelta(days=1 if weekday is None else 7)
         self.tz = timezone(timedelta(minutes=utc_offset_minutes))
 
     def now(self) -> datetime:
@@ -81,29 +87,33 @@ class Schedule:
         """The most recent scheduled time at or before `now`."""
         now = (now or self.now()).astimezone(self.tz)
         slot = now.replace(hour=self.hour, minute=self.minute, second=0, microsecond=0)
-        slot -= timedelta(days=(now.weekday() - self.weekday) % 7)
+        if self.weekday is not None:
+            slot -= timedelta(days=(now.weekday() - self.weekday) % 7)
         if slot > now:
-            slot -= timedelta(days=7)
+            slot -= self.period
         return slot
 
     def next_slot(self, now: Optional[datetime] = None) -> datetime:
-        return self.last_slot(now) + timedelta(days=7)
+        return self.last_slot(now) + self.period
 
     def describe(self) -> str:
         off = self.tz.utcoffset(None)
         sign = "+" if off >= timedelta(0) else "-"
         mins = abs(int(off.total_seconds() // 60))
-        return (f"{WEEKDAYS[self.weekday]}s {self.hour:02d}:{self.minute:02d} "
+        day = "Daily" if self.weekday is None else f"{WEEKDAYS[self.weekday]}s"
+        return (f"{day} {self.hour:02d}:{self.minute:02d} "
                 f"(UTC{sign}{mins // 60:02d}:{mins % 60:02d})")
 
 
 class Scheduler:
-    """Runs `job` weekly. `last_attempt` lets a run missed while the site was
-    down (PC off on Monday morning) happen as soon as it starts again."""
+    """Runs `job` on `schedule`. `last_attempt` lets a run missed while the site
+    was down (PC off on Monday morning) happen as soon as it starts again."""
 
     def __init__(self, schedule: Schedule, job: Callable[[str], None],
-                 last_attempt: Callable[[], Optional[datetime]]):
+                 last_attempt: Callable[[], Optional[datetime]],
+                 name: str = "Secondary Sales"):
         self.schedule = schedule
+        self.name = name
         self._job = job
         self._last_attempt = last_attempt
         self._stop = threading.Event()
@@ -113,7 +123,7 @@ class Scheduler:
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
-        self._thread = threading.Thread(target=self._loop, name="sec-refresh", daemon=True)
+        self._thread = threading.Thread(target=self._loop, name=f"refresh: {self.name}", daemon=True)
         self._thread.start()
 
     def stop(self) -> None:
@@ -129,8 +139,8 @@ class Scheduler:
     def _loop(self) -> None:
         self.next_run = self._first_run()
         retries = 0
-        log.info("Secondary Sales refresh scheduled: %s; next run %s",
-                 self.schedule.describe(), self.next_run.isoformat(timespec="minutes"))
+        log.info("%s refresh scheduled: %s; next run %s",
+                 self.name, self.schedule.describe(), self.next_run.isoformat(timespec="minutes"))
         while not self._stop.is_set():
             wait = (self.next_run - self.schedule.now()).total_seconds()
             if wait > 0:
@@ -141,7 +151,7 @@ class Scheduler:
                 self._job("scheduled")
                 ok = True
             except Exception:           
-                log.exception("scheduled Secondary Sales refresh failed")
+                log.exception("scheduled %s refresh failed", self.name)
             now = self.schedule.now()
             if ok or retries >= MAX_RETRIES:
                 retries = 0
@@ -150,4 +160,4 @@ class Scheduler:
                 retries += 1
                 self.next_run = min(now + timedelta(minutes=RETRY_MINUTES),
                                     self.schedule.next_slot(now))
-            log.info("next Secondary Sales refresh %s", self.next_run.isoformat(timespec="minutes"))
+            log.info("next %s refresh %s", self.name, self.next_run.isoformat(timespec="minutes"))

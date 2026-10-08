@@ -35,6 +35,7 @@ from fastapi.staticfiles import StaticFiles
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 
+from . import ar_refresh
 from . import ask as ask_mod
 from . import ask_sec as ask_sec_mod
 from . import data_sync
@@ -42,7 +43,7 @@ from . import keep_awake
 from . import sec_refresh
 from . import users
 from .config import settings
-from .importers import ar_excel, sec_excel
+from .importers import ar_api, ar_excel, sec_excel
 from .providers import ProviderError, get_provider
 
 log = logging.getLogger("nutaste.ask")
@@ -332,6 +333,71 @@ def refresh_sec_from_source(trigger: str) -> str:
         _sec_refresh_lock.release()
 
 
+# ------------------------------------------------ receivables from the BC API
+# Daily pull of AgedReceivables, through the same validation and backup as an
+# upload. Shares the Schedule/Scheduler in app/sec_refresh.py.
+_ar_refresh_lock = threading.Lock()
+_ar_schedule = sec_refresh.Schedule(None, settings.ar_refresh_time,
+                                    settings.ar_refresh_utc_offset_minutes)
+_ar_scheduler: Optional[sec_refresh.Scheduler] = None
+
+
+def _ar_api_configured() -> bool:
+    return bool(settings.bc_ar_api_url and settings.bc_api_username and settings.bc_api_password)
+
+
+def _record_ar_refresh(ok: bool, message: str, trigger: str) -> None:
+    meta = _meta()
+    meta["arRefresh"] = {"lastAttempt": _ar_schedule.now().isoformat(timespec="seconds"),
+                         "ok": ok, "message": message, "trigger": trigger}
+    META_PATH.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+
+def _last_ar_refresh_attempt() -> Optional[datetime]:
+    stamp = _meta().get("arRefresh", {}).get("lastAttempt")
+    try:
+        return datetime.fromisoformat(stamp) if stamp else None
+    except ValueError:
+        return None
+
+
+def refresh_ar_from_api(trigger: str) -> str:
+    """Pull AgedReceivables from Business Central and replace the AR dataset.
+
+    Ageing comes from the API's total-overdue-days field. On any failure the
+    current dataset is left untouched. Returns a one-line summary on success.
+    """
+    if not _ar_refresh_lock.acquire(blocking=False):
+        raise ar_refresh.RefreshError("A receivables refresh is already running. Try again in a minute.")
+    try:
+        records = ar_refresh.fetch(settings.bc_ar_api_url, settings.bc_api_username,
+                                   settings.bc_api_password, settings.bc_api_timeout_seconds)
+        payload = ar_api.convert(records, ar_refresh.today_ist(),
+                                 BASE.parent / "config" / "ar_columns.json")
+        _validate_ar(payload)
+        _write_dataset(AR_PATH, payload, "ar",
+                       f"Business Central API, {trigger} (ageing as at {payload['reportDate']})")
+        unmatched = [n for n in payload["salespeople"] if not user_store.directory.resolve(n)]
+        message = (f"Imported {len(payload['lines'])} lines for {len(payload['salespeople'])} salespeople "
+                   f"from Business Central, ageing as at {payload['reportDate']}")
+        if unmatched:
+            message += (f". {len(unmatched)} salesperson name(s) match nobody in the employee "
+                        f"directory and stay hidden: {', '.join(unmatched[:8])}")
+        _record_ar_refresh(True, message, trigger)
+        log.info("Receivables refresh (%s): %s", trigger, message)
+        if settings.ar_auto_push:
+            data_sync.push_in_background(BASE.parent, f"Receivables data refresh ({trigger}): "
+                                         f"ageing as at {payload['reportDate']}",
+                                         settings.sec_auto_push_branch, data_sync.AR_DATA_PATHS)
+        return message
+    except Exception as exc:
+        _record_ar_refresh(False, str(exc)[:400], trigger)
+        log.warning("Receivables refresh (%s) failed: %s", trigger, exc)
+        raise
+    finally:
+        _ar_refresh_lock.release()
+
+
 @app.on_event("startup")
 def _start_sec_scheduler() -> None:
     global _sec_scheduler
@@ -347,6 +413,41 @@ def _start_sec_scheduler() -> None:
 def _stop_sec_scheduler() -> None:
     if _sec_scheduler:
         _sec_scheduler.stop()
+
+
+@app.on_event("startup")
+def _start_ar_scheduler() -> None:
+    global _ar_scheduler
+    if not (settings.ar_refresh_enabled and _ar_api_configured()):
+        log.info("Receivables daily refresh is off (BC API not configured or disabled).")
+        return
+    _ar_scheduler = sec_refresh.Scheduler(_ar_schedule, refresh_ar_from_api,
+                                          _last_ar_refresh_attempt, name="Receivables")
+    _ar_scheduler.start()
+
+
+@app.on_event("shutdown")
+def _stop_ar_scheduler() -> None:
+    if _ar_scheduler:
+        _ar_scheduler.stop()
+
+
+def _ar_refresh_status() -> str:
+    """One line for the admin page describing the daily refresh state."""
+    if not _ar_api_configured():
+        return "Not configured (set BC_AR_API_URL, BC_API_USERNAME, BC_API_PASSWORD)"
+    if not settings.ar_refresh_enabled:
+        return "Disabled (AR_REFRESH_ENABLED=false); manual refresh still works"
+    nxt = _ar_scheduler.next_run if _ar_scheduler else None
+    return _ar_schedule.describe() + (f" · next {nxt:%a %d %b %H:%M}" if nxt else "")
+
+
+def _ar_last_refresh() -> str:
+    r = _meta().get("arRefresh")
+    if not r:
+        return "never"
+    when = r.get("lastAttempt", "")[:16].replace("T", " ")
+    return f"{'OK' if r.get('ok') else 'FAILED'} {when} ({r.get('trigger', '')}): {r.get('message', '')}"
 
 
 # Free Render instances sleep after ~15 idle minutes; see app/keep_awake.py.
@@ -414,11 +515,17 @@ def healthz():
 
 @app.get("/healthz/data")
 def healthz_data():
-    """Which Secondary Sales data this copy is serving, so the PC and the hosted
-    copy can be compared without signing in. Timestamps and month names only."""
-    sec = _meta().get("sec", {})
+    """Which data this copy is serving, so the PC and the hosted copy can be
+    compared without signing in. Timestamps, dates and month names only."""
+    meta = _meta()
+    sec, ar = meta.get("sec", {}), meta.get("ar", {})
+    ar_refresh_state = meta.get("arRefresh", {})
     return {"secUpdated": sec.get("updated"), "secSource": sec.get("source"),
-            "months": _sec_months()}
+            "months": _sec_months(),
+            "arUpdated": ar.get("updated"), "arSource": ar.get("source"),
+            "arReportDate": _load(AR_PATH).get("reportDate"),
+            "arLastRefresh": ar_refresh_state.get("lastAttempt"),
+            "arLastRefreshOk": ar_refresh_state.get("ok")}
 
 
 # Form fields for the one sign-in template (login.html), which serves the
@@ -1138,6 +1245,9 @@ def _admin_page(msg: str = "", err: str = "", reveal: str = "") -> str:
         ar_total=f"{sum(l[6] for l in ar.get('lines', [])):,.2f}" if ar else "—",
         ar_updated=m.get("ar", {}).get("updated", "seeded"),
         ar_source=m.get("ar", {}).get("source", "initial dataset"),
+        ar_api_disabled="" if settings.bc_ar_api_url else "disabled",
+        ar_refresh_schedule=html.escape(_ar_refresh_status()),
+        ar_refresh_last=html.escape(_ar_last_refresh()),
         sec_period=f"{sec.get('periodFrom', '—')} to {sec.get('periodTo', '—')}",
         sec_people=len(sec.get("people", [])),
         sec_visits=len(sec.get("visits", [])),
@@ -1246,6 +1356,19 @@ async def admin_upload(request: Request, kind: str = Form(...), report_date: str
     from urllib.parse import quote
     return RedirectResponse(f"/admin?msg={quote(f'{kind.upper()} dataset replaced from {file.filename}')}",
                             status_code=303)
+
+
+@app.post("/admin/refresh-ar")
+def admin_refresh_ar(request: Request):
+    """Replace the receivables dataset from the Business Central API."""
+    if not _is_authed(request) or not _is_admin(request):
+        return RedirectResponse("/admin/login", status_code=303)
+    from urllib.parse import quote
+    try:
+        message = refresh_ar_from_api("manual")
+    except Exception as exc:  # surfaced to the admin, never to salespeople
+        return RedirectResponse(f"/admin?err={quote(str(exc)[:400])}", status_code=303)
+    return RedirectResponse(f"/admin?msg={quote(message[:600])}", status_code=303)
 
 
 @app.post("/admin/refresh-sec")

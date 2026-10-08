@@ -426,23 +426,47 @@ What the code cannot do for you:
 
 ---
 
-## When the Business Central API is ready
+## Receivables from the Business Central API
 
-The upload path is deliberately the only part that knows where data comes from.
-To switch to the API, write a scheduled job that calls BC and writes
-`$DATA_DIR/ar_data.json` in the same shape the importer produces. Nothing in the
-frontend, the authentication or the admin page needs to change; you can keep the
-upload page as a manual fallback.
+Receivables are pulled straight from BC's `AgedReceivables` OData endpoint
+**every day at 11:00 IST**, and on demand from `/admin` → **Refresh now from
+Business Central**. It goes through the same validation and backup as an upload, and the
+frontend sees a dataset of exactly the same shape.
 
-Still outstanding from the build plan, and needed before that job can be
-written:
+| Variable | Purpose |
+|---|---|
+| `BC_AR_API_URL` | the AgedReceivables endpoint. Blank disables the button |
+| `BC_API_USERNAME` / `BC_API_PASSWORD` | a BC web-service user (HTTP Basic auth). **Secrets** |
+| `BC_API_TIMEOUT_SECONDS` | per-request timeout, default 120 |
+| `AR_REFRESH_ENABLED` | `false` stops the daily run; the button still works |
+| `AR_REFRESH_TIME` / `AR_REFRESH_UTC_OFFSET_MINUTES` | default `11:00` at `330` (IST) |
+| `AR_AUTO_PUSH` | commit + push `ar_data.json` after each refresh so Render catches up. Defaults to `SEC_AUTO_PUSH`; office PC only |
 
-- Endpoint URL and authentication method
-- A sample JSON response
-- **Whether the API is IP-restricted** — this constrains the hosting choice
+- **Ageing comes from the API's total overdue days**, not from Due Date: each
+  line goes into the bucket its days fall in (33 days → "32-62 Days"), using
+  the same bucket bounds as the Excel import. The report date is today (IST).
+- **Only fields the API returns are used.** API field names are matched through
+  `config/ar_columns.json` ignoring case and punctuation (`Remaining_Amount`
+  matches "Remaining Amount"). Required: salesperson, customer number or name,
+  document number, balance, overdue days. Zone, payment terms, due date and
+  original amount are optional and left blank when absent.
+- **The daily run** starts only when the URL and both credentials are set. A run
+  missed while the site was down happens about 30 seconds after it next starts;
+  a failed run is retried hourly, up to three times, and the current data stays
+  in place. The admin page shows the next run and the last result.
+- Lines with a zero balance are skipped; paging (`@odata.nextLink`) is followed,
+  but never to a different server, so the credentials only go to BC.
 
-Credentials belong in the host's environment configuration, read at runtime.
-Never in chat, never in source code.
+To see what the API returns and how it maps, before replacing anything:
+
+```powershell
+.venv\Scripts\python -m app.ar_refresh fields   # field names + mapping
+.venv\Scripts\python -m app.ar_refresh check    # full conversion, nothing written
+```
+
+The endpoint is plain `http://`, so the Basic-auth credentials cross the network
+unencrypted. Use a dedicated read-only BC user and move the endpoint to HTTPS
+when possible. Credentials belong in `.env` / the host's secrets, never in code.
 
 ---
 
@@ -456,11 +480,13 @@ app/
   hash_password.py      python -m app.hash_password
   ask.py                question -> filter spec: prompt, schema, validation
   sec_refresh.py        weekly SharePoint download + scheduler for Secondary Sales
+  ar_refresh.py         Business Central AgedReceivables API fetch; python -m app.ar_refresh
   providers/
     base.py             the Provider protocol every backend implements
     gemini.py           Google Gemini over plain HTTPS (no vendor SDK)
   importers/
     ar_excel.py         BC extract  -> AR dataset (recomputes ageing)
+    ar_api.py           BC API records -> AR dataset (buckets by overdue days)
     sec_excel.py        activity workbook -> secondary sales dataset
   static/               receivables.js, secondary.js, switch.js, app.css
   templates/            index.html (the Sales Desk), login.html, admin.html

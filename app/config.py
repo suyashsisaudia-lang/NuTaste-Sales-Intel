@@ -104,6 +104,22 @@ class Settings:
     sec_auto_push: bool = _bool("SEC_AUTO_PUSH", False)
     sec_auto_push_branch: str = os.getenv("SEC_AUTO_PUSH_BRANCH", "main")
 
+    # ---- Receivables from the Business Central OData API (app/ar_refresh.py)
+    # The AgedReceivables endpoint and a BC web-service user (Basic auth).
+    # Blank URL = the admin page's "Refresh from Business Central" is disabled.
+    bc_ar_api_url: str = os.getenv("BC_AR_API_URL", "")
+    bc_api_username: str = os.getenv("BC_API_USERNAME", "")
+    bc_api_password: str = os.getenv("BC_API_PASSWORD", "")
+    bc_api_timeout_seconds: float = float(os.getenv("BC_API_TIMEOUT_SECONDS", "120"))
+    # Daily refresh from the API. Runs only when the URL and both credentials
+    # are set; "false" stops the schedule but keeps the admin button working.
+    ar_refresh_enabled: bool = _bool("AR_REFRESH_ENABLED", True)
+    ar_refresh_time: str = os.getenv("AR_REFRESH_TIME", "11:00")
+    ar_refresh_utc_offset_minutes: int = int(os.getenv("AR_REFRESH_UTC_OFFSET_MINUTES", "330"))
+    # Commit + push ar_data.json after each refresh so Render catches up. Follows
+    # SEC_AUTO_PUSH unless set on its own; meant for the office PC only.
+    ar_auto_push: bool = _bool("AR_AUTO_PUSH", _bool("SEC_AUTO_PUSH", False))
+
     # ---- keep a free Render instance awake (app/keep_awake.py)
     # Render sets RENDER_EXTERNAL_URL on its own hosts, so this is on there and
     # off everywhere else without any configuration. Set KEEP_AWAKE_URL to ""
