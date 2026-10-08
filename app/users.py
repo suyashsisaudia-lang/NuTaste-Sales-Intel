@@ -185,6 +185,13 @@ class Directory:
             return code
         return self._by_name.get(n)
 
+    def data_owner(self, name: str, roster_id: Optional[str] = None) -> Optional[str]:
+        """Like resolve(), but only people from the HR master own data rows.
+        Hand-added entries (--extra: the head of sales, viewing logins) can sign
+        in and see others, but are never listed as a salesperson themselves."""
+        code = self.resolve(name, roster_id)
+        return None if code is None or self.employees[code].get("manual") else code
+
 
 class Store:
     """Directory + credentials, reloaded whenever either file changes on disk,
@@ -299,7 +306,7 @@ def scope_ar(ar: dict, directory: Directory, viewer: Viewer) -> dict:
     if not ar:
         return ar
     names = ar.get("salespeople", [])
-    keep = [i for i, n in enumerate(names) if viewer.can_see(directory.resolve(n))]
+    keep = [i for i, n in enumerate(names) if viewer.can_see(directory.data_owner(n))]
     remap = {old: new for new, old in enumerate(keep)}
     lines = [ln for ln in ar.get("lines", []) if ln[0] in remap]
     # Customers too: the list is index-addressed, and sending it whole would
@@ -324,7 +331,7 @@ def scope_sec(sec: dict, directory: Directory, viewer: Viewer) -> dict:
     people = sec.get("people", [])
     roster = sec.get("roster", {})
     keep = [i for i, n in enumerate(people)
-            if viewer.can_see(directory.resolve(n, (roster.get(n) or {}).get("id")))]
+            if viewer.can_see(directory.data_owner(n, (roster.get(n) or {}).get("id")))]
     remap = {old: new for new, old in enumerate(keep)}
     out = dict(sec)
     out["people"] = [people[i] for i in keep]
