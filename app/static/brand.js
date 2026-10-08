@@ -162,6 +162,10 @@
     var modLabel = hero.querySelector('#hs-module'), dateEl = hero.querySelector('#hs-date');
     var greetEl = hero.querySelector('#hs-greet'), nameEl = hero.querySelector('#hs-name');
     var subEl = hero.querySelector('#hs-sub');
+    var ctxEl = hero.querySelector('#hs-context'), ctxPerson = hero.querySelector('#hs-ctx-person'),
+        ctxPeriod = hero.querySelector('#hs-ctx-period');
+    var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                  'August', 'September', 'October', 'November', 'December'];
 
     var SUBS = {
       ar:  { overview: 'Your receivables at a glance — balance, ageing and top customers.',
@@ -196,6 +200,23 @@
         dateEl.textContent = asof && asof.textContent !== '—' ? 'refreshed ' + asof.textContent : '';
       }
       dateEl.previousElementSibling.hidden = !dateEl.textContent;
+
+      // The salesperson being viewed and the period, under the greeting.
+      if (ctxEl) {
+        var period = '';
+        if (mod === 'sec') {
+          var ms = document.getElementById('sec-month');
+          var mk = /^(\d{4})-(\d{2})$/.exec(ms && ms.value || '');
+          period = mk ? MONTHS[+mk[2] - 1] + ' ' + mk[1] : '';
+        } else {
+          var ad = document.getElementById('asof-date');
+          period = ad && ad.textContent !== '—' ? 'as at ' + ad.textContent : '';
+        }
+        ctxPerson.textContent = name;
+        ctxPeriod.textContent = period;
+        ctxPeriod.hidden = ctxPeriod.previousElementSibling.hidden = !period;
+        ctxEl.hidden = !name;
+      }
 
       subEl.textContent = name ? (SUBS[mod][view] || SUBS[mod].overview)
         : 'Search your name above to open your ' + (mod === 'sec' ? 'month.' : 'book.');

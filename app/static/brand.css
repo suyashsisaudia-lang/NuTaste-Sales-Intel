@@ -86,13 +86,20 @@
 }
 .hs-eyebrow::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #3ec46f;
                       animation: nt-ping 2.4s ease-out infinite; }
-.hs-title { margin: 0; font-size: clamp(28px, 3.6vw, 46px); font-weight: 600; letter-spacing: -.035em; line-height: 1.04; }
+.hs-title { margin: 0; font-size: clamp(22px, 2.6vw, 34px); font-weight: 600; letter-spacing: -.03em; line-height: 1.08; }
 .hs-greet { display: block; color: rgba(255,255,255,.94); }
 .hs-name  { display: block; color: #3ec46f; overflow: hidden; padding-bottom: .06em; }
 .hs-name:empty { display: none; }
 .hs-name .ch { display: inline-block; transform: translateY(105%);
                animation: nt-rise .8s var(--ease-out) calc(.1s + var(--i) * 40ms) forwards; }
-.hs-sub { margin: 12px 0 0; font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,.76); max-width: 46ch; }
+/* whose book / which period is open, under the greeting */
+.hs-context { margin: 10px 0 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px;
+              font-size: 15px; line-height: 1.35; }
+.hs-context[hidden] { display: none; }
+.hs-ctx-person { font-weight: 600; color: #fff; }
+.hs-ctx-sep { color: rgba(255,255,255,.45); }
+.hs-ctx-period { font-weight: 500; color: #3ec46f; }
+.hs-sub { margin: 8px 0 0; font-size: 13.5px; line-height: 1.5; color: rgba(255,255,255,.76); max-width: 46ch; }
 @keyframes nt-rise { to { transform: none; opacity: 1; } }
 @keyframes nt-ping { 0% { box-shadow: 0 0 0 0 rgba(62,196,111,.6); } 80%, 100% { box-shadow: 0 0 0 10px rgba(62,196,111,0); } }
 
