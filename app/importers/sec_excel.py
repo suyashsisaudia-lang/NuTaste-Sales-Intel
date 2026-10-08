@@ -386,14 +386,24 @@ def _build(parsed: Dict[str, Any], y: int, m: int) -> Dict[str, Any]:
                 round(_num(_get(row, ix, "Amount")), 2),
             ])
 
-    # People with no activity at all in the period would render as empty pages;
-    # keep them out of the picker but leave the roster intact.
+    # Everyone enabled on the current employee list is listed every month, so a
+    # person with no rows of their own (a manager whose name is only in the
+    # supervisor / FPR 2 columns) gets a "No activity" page instead of vanishing.
+    # Disabled accounts appear only in months where they have activity.
+    def enabled(name: str) -> bool:
+        return (roster.get(name) or {}).get("status") == "enabled"
+
+    for name in roster:
+        if enabled(name) and name not in people_ix:
+            people_ix[name] = len(people)
+            people.append(name)
+
     active = {r[0] for rows in out.values() for r in rows}
     keep = sorted(range(len(people)), key=lambda i: people[i].lower())
     remap = {}
     new_people = []
     for i in keep:
-        if i in active:
+        if i in active or enabled(people[i]):
             remap[i] = len(new_people)
             new_people.append(people[i])
     for rows in out.values():

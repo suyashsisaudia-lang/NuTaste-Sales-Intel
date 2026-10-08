@@ -206,8 +206,8 @@
       var first = me ? me.split(/\s+/)[0] : '';
       first = first ? first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() : '';
       if (first !== lastName) {
-        greetEl.textContent = greeting() + (first ? ',' : '.');
-        splitRise(nameEl, first ? first + '.' : '');
+        greetEl.textContent = greeting();
+        splitRise(nameEl, first);
         lastName = first;
       }
       if (mod !== lastMod) {
