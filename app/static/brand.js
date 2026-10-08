@@ -216,6 +216,7 @@
         ctxPeriod.textContent = period;
         ctxPeriod.hidden = ctxPeriod.previousElementSibling.hidden = !period;
         ctxEl.hidden = !name;
+        hero.classList.toggle('has-ctx', !!name);
       }
 
       subEl.textContent = name ? (SUBS[mod][view] || SUBS[mod].overview)
