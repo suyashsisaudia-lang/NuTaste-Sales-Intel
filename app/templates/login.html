@@ -92,7 +92,9 @@
               font-size: clamp(34px, min(6vw, 13vh), 136px); color: #fff;
               /* "Intelligence." is the longest line: size to the hero column so it never clips. */
               font-size: clamp(34px, min(14cqi, 13vh), 136px); }
-  .headline .line { display: block; overflow: hidden; padding: 0 .04em .08em 0; }
+  /* overflow:hidden masks the letter rise; the bottom padding keeps descenders (the g)
+     inside the mask, and the negative margin gives that space back so spacing is unchanged. */
+  .headline .line { display: block; overflow: hidden; padding: 0 .04em .22em 0; margin-bottom: -.14em; }
   .headline .line + .line { color: #3ec46f; }
   /* Letters rise into place once login.js has split them. */
   .split .ch { display: inline-block; transform: translateY(105%) rotate(8deg); opacity: 0;
