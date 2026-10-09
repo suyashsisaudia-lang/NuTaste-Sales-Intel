@@ -16,7 +16,7 @@
 <meta name="theme-color" content="#0c843a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Sales Desk">
+<meta name="apple-mobile-web-app-title" content="Sales Intel">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
   /* The sign-in page is always dark, whatever the system theme: it is the one
@@ -65,7 +65,7 @@
   }
 
   /* --------------------------------------------------------------- hero */
-  .hero { min-width: 0; }
+  .hero { min-width: 0; container-type: inline-size; }
   /* Sized by the shorter of width and height, so wide-but-short screens keep
      the tagline clear of the ticker. */
   .mark { position: relative; width: clamp(84px, min(17vw, 16vh), 210px); aspect-ratio: 90 / 127;
@@ -89,7 +89,9 @@
   @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(62,196,111,.6); } 80%, 100% { box-shadow: 0 0 0 12px rgba(62,196,111,0); } }
 
   .headline { margin: 0; font-weight: 600; letter-spacing: -.045em; line-height: .92;
-              font-size: clamp(48px, min(9.5vw, 13vh), 136px); color: #fff; }
+              font-size: clamp(34px, min(6vw, 13vh), 136px); color: #fff;
+              /* "Intelligence." is the longest line: size to the hero column so it never clips. */
+              font-size: clamp(34px, min(14cqi, 13vh), 136px); }
   .headline .line { display: block; overflow: hidden; padding: 0 .04em .08em 0; }
   .headline .line + .line { color: #3ec46f; }
   /* Letters rise into place once login.js has split them. */
@@ -228,7 +230,7 @@
     <p class="eyebrow"><i></i>NuTaste · Internal</p>
     <h2 class="headline" id="headline">
       <span class="line">Sales</span>
-      <span class="line">Desk.</span>
+      <span class="line">Intelligence.</span>
     </h2>
     <p class="lede">Receivables, ageing and secondary sales for every salesperson, in one place.</p>
   </section>

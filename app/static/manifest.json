@@ -1,6 +1,6 @@
 {
-  "name": "NuTaste Sales Desk",
-  "short_name": "Sales Desk",
+  "name": "NuTaste Sales Intelligence",
+  "short_name": "Sales Intel",
   "description": "Receivables and secondary sales for every NuTaste salesperson.",
   "start_url": "/",
   "scope": "/",

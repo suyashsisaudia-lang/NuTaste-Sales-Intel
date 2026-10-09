@@ -1,5 +1,5 @@
 
-// Motion layer for the Sales Desk.
+// Motion layer for NuTaste Sales Intelligence.
 //
 // Purely decorative: it never changes data or layout, and receivables.js /
 // secondary.js know nothing about it. It watches the view containers for newly

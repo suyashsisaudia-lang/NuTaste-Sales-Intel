@@ -1,5 +1,5 @@
 """
-Business Central AR extract -> the compact JSON the Sales Desk frontend expects.
+Business Central AR extract -> the compact JSON the Sales Intelligence frontend expects.
 
 Two things this importer does that the raw extract does not:
 

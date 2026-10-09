@@ -1,6 +1,6 @@
-# NuTaste Sales Desk
+# NuTaste Sales Intelligence
 
-The Sales Desk as a hosted web application: the same Receivables and Secondary
+NuTaste Sales Intelligence as a hosted web application: the same Receivables and Secondary
 Sales views, behind a personal sign-in per employee, with an admin page for replacing the data.
 
 Built to stay host-agnostic — one Docker container, all configuration through
@@ -489,7 +489,7 @@ app/
     ar_api.py           BC API records -> AR dataset (buckets by overdue days)
     sec_excel.py        activity workbook -> secondary sales dataset
   static/               receivables.js, secondary.js, switch.js, app.css
-  templates/            index.html (the Sales Desk), login.html, admin.html
+  templates/            index.html (the main app), login.html, admin.html
 config/ar_columns.json  column-name aliases for the AR import
 data/                   datasets + backups/  (mount a volume here)
 ```
