@@ -537,6 +537,15 @@ _ICON_LOCK = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
               'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
               '<rect x="4.5" y="10.5" width="15" height="10" rx="2.5"></rect>'
               '<path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path></svg>')
+_EYE = ('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"></path>'
+        '<circle cx="12" cy="12" r="2.8"></circle>')
+_SVG = ('<svg class="{cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{body}</svg>')
+# Show/hide password. Hidden until login.js wires it up, so it never shows as a dead button.
+_REVEAL = ('<button type="button" class="reveal" aria-label="Show password" aria-pressed="false" hidden>'
+           + _SVG.format(cls="eye-show", body=_EYE)
+           + _SVG.format(cls="eye-hide", body=_EYE + '<path d="M4 4l16 16"></path>')
+           + '</button>')
 
 
 def _field(name: str, kind: str, label: str, autocomplete: str,
@@ -545,9 +554,11 @@ def _field(name: str, kind: str, label: str, autocomplete: str,
     flags = (" required" if required else "") + (" autofocus" if autofocus else "")
     if kind == "email":
         flags += ' autocapitalize="off" spellcheck="false"'
-    return (f'<div class="field">{icon}<input type="{kind}" name="{name}" '
+    cls = "field field-password" if kind == "password" else "field"
+    return (f'<div class="{cls}">{icon}<input type="{kind}" name="{name}" '
             f'placeholder="{label}" aria-label="{label}" autocomplete="{autocomplete}" '
-            f'value="{html.escape(value)}"{flags}></div>')
+            f'value="{html.escape(value)}"{flags}>'
+            f'{_REVEAL if kind == "password" else ""}</div>')
 
 
 def _gate(heading: str, intro: str, action: str, fields: str, error: str = "",

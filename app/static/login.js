@@ -35,10 +35,38 @@
     head.classList.add('split');
   }
 
+  // ------------------------------------------------------ show/hide password
+  var reveals = [];
+  document.querySelectorAll('.field .reveal').forEach(function (btn) {
+    var input = btn.parentNode.querySelector('input');
+    if (!input) return;
+    var set = function (show) {
+      input.type = show ? 'text' : 'password';
+      btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    };
+    // Keep focus (and the phone keyboard) in the box while tapping the eye.
+    btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    btn.addEventListener('click', function () {
+      var at = input.selectionStart;
+      set(input.type === 'password');
+      if (document.activeElement !== btn) {
+        input.focus();
+        if (at != null) {
+          try { input.setSelectionRange(at, at); } catch (err) { /* some browsers refuse on type swaps */ }
+        }
+      }
+    });
+    btn.hidden = false;
+    reveals.push(set);
+  });
+
   // ------------------------------------------------------ submit state
   var form = document.getElementById('gate-form'), go = document.getElementById('go');
   if (form && go) {
     form.addEventListener('submit', function () {
+      // Never leave a password on screen while the next page loads.
+      reveals.forEach(function (set) { set(false); });
       go.classList.add('busy');
       go.querySelector('span').textContent = 'Checking…';
       go.querySelector('svg').innerHTML = '<path d="M12 3a9 9 0 1 0 9 9"></path>';
