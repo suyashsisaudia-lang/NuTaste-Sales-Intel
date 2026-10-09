@@ -928,7 +928,7 @@ table.rep tbody tr:not(.cust):not(.sub):not(.grand):hover td { background: var(-
 .rep-line-doc strong { font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
 .rep-line-bal { font-size: 13px; font-weight: 600; white-space: nowrap; }
 .rep-grand {
-  margin-top: 12px; padding: 11px 12px; border-radius: var(--r-md);
+  margin-bottom: 12px; padding: 11px 12px; border-radius: var(--r-md);
   background: var(--brand-deep); color: #fff;
 }
 .rep-grand-top {

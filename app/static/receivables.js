@@ -449,7 +449,8 @@
     gtr.appendChild(el('td', 'n', m0(s.original)));
     gtr.appendChild(el('td', 'n', m0(s.balance)));
     act.forEach(function (b) { gtr.appendChild(el('td', 'n', m0(s.buckets[b]))); });
-    tbody.appendChild(gtr);
+    // Grand total leads the statement, ahead of the first customer.
+    tbody.insertBefore(gtr, tbody.firstChild);
 
     t.appendChild(tbody);
     scroll.appendChild(t);
@@ -460,7 +461,7 @@
     lgTop.appendChild(el('strong', 'num', m0(s.balance)));
     lg.appendChild(lgTop);
     lg.appendChild(repFigs(s.original, function (b) { return s.buckets[b]; }));
-    list.appendChild(lg);
+    list.insertBefore(lg, list.firstChild);
 
     var toggle = el('button', 'rep-toggle', 'Table view');
     toggle.type = 'button';
