@@ -1,10 +1,10 @@
 """
-NuTaste Sales Intelligence — hosted backend.
+NuTaste Sales Intel — hosted backend.
 
 Responsibilities
   * Shared-password gate for the whole site (bcrypt hash from env, rate-limited).
   * Signed, HttpOnly session cookie with expiry.
-  * Serves the Sales Intelligence frontend and the two datasets (AR_DATA, SEC_DATA).
+  * Serves the Sales Intel frontend and the two datasets (AR_DATA, SEC_DATA).
   * Admin area (separate password) to upload replacement datasets:
       - JSON in the app's native shape (either dataset), or
       - the Business Central AR Excel extract, converted by importers/ar_excel.py.
@@ -57,7 +57,7 @@ SEC_MONTHS_DIR = DATA_DIR / "sec_months"        # one file per month: 2026-09.js
 META_PATH = DATA_DIR / "meta.json"
 MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
-app = FastAPI(title="NuTaste Sales Intelligence", docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="NuTaste Sales Intel", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=BASE / "static"), name="static")
 
 signer = URLSafeTimedSerializer(settings.secret_key, salt="nutaste-session")
@@ -551,7 +551,7 @@ def _field(name: str, kind: str, label: str, autocomplete: str,
 
 
 def _gate(heading: str, intro: str, action: str, fields: str, error: str = "",
-          hint: str = "", button: str = "Continue", title: str = "NuTaste Sales Intelligence",
+          hint: str = "", button: str = "Continue", title: str = "NuTaste Sales Intel",
           notice: str = "") -> str:
     # No fields = a message page whose button just goes to `action`.
     method = "post" if fields else "get"
@@ -570,7 +570,7 @@ def login_form(request: Request, error: str = "", u: str = ""):
     email = u[:120] if error == "bad" else ""
     fields = (_field("username", "email", "Work email", "username", email, autofocus=not email)
               + _field("password", "password", "Password", "current-password", autofocus=bool(email)))
-    return _gate("Sales Intelligence", "Sign in with your NuTaste email and password.", "/login", fields,
+    return _gate("Sales Intel", "Sign in with your NuTaste email and password.", "/login", fields,
                  error=msg, hint='Forgotten your password? Ask IT to reset it.')
 
 
@@ -1199,7 +1199,7 @@ def admin_login_form(request: Request, error: str = ""):
            "rate": "Too many attempts. Please wait a few minutes."}.get(error, "")
     return _gate("Data administration", "Enter the admin password to continue.", "/admin/login",
                  _field("password", "password", "Admin password", "current-password", autofocus=True),
-                 error=msg, title="Sales Intelligence — Admin",
+                 error=msg, title="Sales Intel — Admin",
                  hint="Admin access is separate from your own sign-in.")
 
 

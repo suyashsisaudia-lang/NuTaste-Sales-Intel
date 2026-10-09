@@ -1,5 +1,5 @@
 """
-Secondary Sales workbook -> the compact JSON the Sales Intelligence frontend expects.
+Secondary Sales workbook -> the compact JSON the Sales Intel frontend expects.
 
 The workbook holds several years of activity across nine sheets. One reporting
 period is extracted at a time (default: the latest complete month present in

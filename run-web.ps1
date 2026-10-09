@@ -1,4 +1,4 @@
-# Foreground runner for the NuTaste Sales Intelligence web app.
+# Foreground runner for the NuTaste Sales Intel web app.
 #
 # Unlike start-web.ps1 (which launches uvicorn and returns), this script *stays*
 # in the foreground and restarts uvicorn if it ever exits. That is what the

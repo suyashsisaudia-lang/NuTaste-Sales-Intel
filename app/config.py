@@ -138,7 +138,7 @@ _missing = [n for n, v in (("ADMIN_PASSWORD_HASH", settings.admin_password_hash)
                            ("SECRET_KEY", settings.secret_key)) if not v]
 if _missing:
     sys.stderr.write(
-        "\n[NuTaste Sales Intelligence] Missing required environment variables: "
+        "\n[NuTaste Sales Intel] Missing required environment variables: "
         + ", ".join(_missing)
         + "\nSee README.md → Configuration. Generate hashes with: python -m app.hash_password\n\n"
     )

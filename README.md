@@ -1,6 +1,6 @@
-# NuTaste Sales Intelligence
+# NuTaste Sales Intel
 
-NuTaste Sales Intelligence as a hosted web application: the same Receivables and Secondary
+NuTaste Sales Intel as a hosted web application: the same Receivables and Secondary
 Sales views, behind a personal sign-in per employee, with an admin page for replacing the data.
 
 Built to stay host-agnostic — one Docker container, all configuration through
