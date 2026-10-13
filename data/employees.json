@@ -661,17 +661,18 @@
    "manual": true
   },
   "EXT004": {
-   "name": "M Bajaj",
+   "name": "Manu Bajaj",
    "email": "bajajm@nutasteworld.com",
    "status": "Existing",
    "manager": "",
    "designation": "",
    "location": "",
    "subdept": "",
-   "manual": true
+   "manual": true,
+   "greet": "Manu Bajaj"
   },
   "EXT005": {
-   "name": "R Kamath",
+   "name": "Ranjith Kamath",
    "email": "rkamath@nutasteworld.com",
    "status": "Existing",
    "manager": "",

@@ -227,6 +227,8 @@
       var me = who ? who.textContent.trim() : '';
       var first = me ? me.split(/\s+/)[0] : '';
       first = first ? first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() : '';
+      // a per-person greeting set in the employee list wins, as written
+      if (who && who.getAttribute('data-greet')) first = who.getAttribute('data-greet').trim();
       if (first !== lastName) {
         greetEl.textContent = greeting();
         splitRise(nameEl, first);
@@ -242,7 +244,7 @@
     function splitRise(node, text) {
       node.textContent = '';
       Array.prototype.forEach.call(text, function (c, i) {
-        var s = el('span', 'ch', c);
+        var s = el('span', 'ch', c === ' ' ? '\u00a0' : c);   // inline-block spans drop plain spaces
         s.style.setProperty('--i', i);
         node.appendChild(s);
       });

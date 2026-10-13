@@ -641,8 +641,11 @@ def index(request: Request, month: str = ""):
         return RedirectResponse("/login", status_code=303)
     # ?month=2026-08 picks the Secondary Sales month; anything else is ignored.
     sec_query = f"?month={month}" if MONTH_RE.match(month) else ""
+    # "greet" in employees.json overrides the first-name greeting for one person.
+    greet = (user_store.directory.employees.get(viewer.code) or {}).get("greet", "")
     return _template("index.html", sec_query=sec_query, me_name=html.escape(viewer.name),
-                     me_email=html.escape(viewer.email if not viewer.email.startswith("*") else ""))
+                     me_email=html.escape(viewer.email if not viewer.email.startswith("*") else ""),
+                     me_greet=html.escape(str(greet)))
 
 
 def _dataset_js(viewer: Optional[users.Viewer], payload: Optional[dict], var: str,
