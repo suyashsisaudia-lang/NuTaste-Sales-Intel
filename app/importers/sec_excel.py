@@ -8,9 +8,12 @@ the sales sheet).
 Name handling is the awkward part. The sheets disagree about how people are
 named: the visit and travel exports use the full HR name ("Shrish Pratap
 Singh"), while the sales sheet's FPR 1 column uses a short form ("Shiris
-Pratap"). Rather than force-matching on spelling, aliases are resolved against
-the employee roster and anything unresolved is reported back to the admin, so a
-misspelling shows up as a warning instead of silently losing a person's sales.
+Pratap"). A name is matched, in order, by: the alias list in
+config/sec_name_aliases.json; an exact match on the roster; or a short form
+whose every word appears in exactly ONE roster name ("Aaditya" reaches
+"Aaditya Vishwakarma"). Anything else - a misspelling, or a short form that
+fits several people ("Rajesh", "Praveen kumar") - is never guessed: it stays
+under its own name and is reported to the admin, to be added to the alias list.
 
 Row encodings (positional, to keep the payload small):
 
@@ -33,7 +36,12 @@ import unicodedata
 from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
+import json
+from pathlib import Path
+
 import openpyxl
+
+ALIASES_PATH = Path(__file__).resolve().parents[2] / "config" / "sec_name_aliases.json"
 
 SHEETS = {
     "sales": "Secondary sale",
@@ -57,6 +65,18 @@ def _clean(v: Any) -> str:
 def _key(name: str) -> str:
     """Comparison key for a person's name: lowercase alphabetic tokens only."""
     return " ".join(sorted(re.findall(r"[a-z]+", _clean(name).lower())))
+
+
+def _load_aliases(path: Path = ALIASES_PATH) -> Dict[str, str]:
+    """{name key: roster name}. Read on every import, so an edit to the file
+    applies at the next refresh without a restart. A missing or damaged file
+    means no aliases, never a failed import."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {_key(k): _clean(v) for k, v in (data.get("aliases") or {}).items()
+            if _key(k) and _clean(v)}
 
 
 def _to_date(v: Any) -> Optional[dt.date]:
@@ -203,7 +223,8 @@ def _parse(raw: bytes) -> Dict[str, Any]:
     months = sorted(sheets["sales"][1])
     if not months:
         raise ValueError("No dated rows found in the secondary sales sheet.")
-    return {"roster": roster, "by_key": by_key, "sheets": sheets, "months": months}
+    return {"roster": roster, "by_key": by_key, "aliases": _load_aliases(),
+            "sheets": sheets, "months": months}
 
 
 def convert(raw: bytes, period: Optional[str] = None) -> Dict[str, Any]:
@@ -234,6 +255,7 @@ def convert_all(raw: bytes) -> Dict[str, Dict[str, Any]]:
 def _build(parsed: Dict[str, Any], y: int, m: int) -> Dict[str, Any]:
     """One month's dataset from the grouped rows."""
     roster, by_key, sheets = parsed["roster"], parsed["by_key"], parsed["sheets"]
+    aliases = parsed.get("aliases") or {}
 
     def rows_of(key: str):
         """(header index, this month's rows) for one sheet; empty if absent."""
@@ -255,21 +277,16 @@ def _build(parsed: Dict[str, Any], y: int, m: int) -> Dict[str, Any]:
         if s in alias_cache:
             return alias_cache[s]
 
-        canonical = by_key.get(_key(s))
+        canonical = aliases.get(_key(s)) or by_key.get(_key(s))
         if canonical is None:
-            # Short forms: match when every token of the shorter name appears
-            # in the longer one (so "Shiris Pratap" reaches "Shrish Pratap Singh").
+            # Short forms: every word of the shorter name must appear in the
+            # longer one, and only ONE roster name may fit. Sharing a single
+            # word ("kumar") or fitting several people ("Rajesh") is not a
+            # match - guessing there once gave one person's sales to another.
             toks = set(_key(s).split())
-            best, best_score = None, 0
-            for k, full in by_key.items():
-                other = set(k.split())
-                shared = toks & other
-                if not shared:
-                    continue
-                score = len(shared) / max(1, min(len(toks), len(other)))
-                if score >= 0.5 and score > best_score:
-                    best, best_score = full, score
-            canonical = best
+            fits = [full for k, full in by_key.items()
+                    if toks <= set(k.split()) or set(k.split()) <= toks]
+            canonical = fits[0] if len(fits) == 1 else None
         if canonical is None:
             canonical = s  # keep the person rather than dropping their rows
             unresolved[s] += 1

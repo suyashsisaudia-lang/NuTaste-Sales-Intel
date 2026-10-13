@@ -1,0 +1,13 @@
+{
+  "_about": "Secondary Sales workbook: names that do not exactly match the Channelier Employees roster, mapped to the roster name they belong to. Keys are matched ignoring case, punctuation and word order. A name that is neither listed here nor an unambiguous match is left unresolved and reported on the admin page; it is never guessed.",
+  "aliases": {
+    "Praveen kumar": "Parveen Kumar",
+    "Sai Kumar Vittal": "Vittal Saikumar",
+    "Rajesh": "Rajesh Purushothaman",
+    "Kartik": "Kartik Krishnan Gurjar",
+    "Sanjay": "Sanjay Kumar",
+    "Darshan rawal": "Darshan Raval",
+    "Shiris Pratap": "Shrish Pratap Singh",
+    "Mohb Akib": "Mohd. Akib"
+  }
+}
