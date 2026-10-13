@@ -88,8 +88,27 @@ POOL_OF = {
 
 
 # --------------------------------------------------------------------- context
+# The "All" entry in the name picker: every person the viewer can see, taken
+# together. `sec` is already scoped to the viewer, so "all" never reaches beyond
+# what the page itself shows.
+ALL_PEOPLE = -1
+
+
+def _valid_person(people: list, person_index: Any) -> bool:
+    return isinstance(person_index, int) and (
+        (person_index == ALL_PEOPLE and len(people) > 0) or 0 <= person_index < len(people))
+
+
+def _person_label(people: list, person_index: int) -> str:
+    if person_index == ALL_PEOPLE:
+        return (f"All - the combined activity of a team of {len(people)} people "
+                f"(read 'I', 'me' and 'my' as the whole team)")
+    return people[person_index]
+
+
 def _rows_for(sec: dict, key: str, person_index: int) -> List[list]:
-    return [r for r in (sec.get(key) or []) if r and r[0] == person_index]
+    return [r for r in (sec.get(key) or [])
+            if r and (person_index == ALL_PEOPLE or r[0] == person_index)]
 
 
 def _cell(r: list, ix: int) -> Any:
@@ -116,7 +135,7 @@ def build_context(sec: dict, person_index: int) -> Optional[dict]:
     to know what any of them came to.
     """
     people = sec.get("people") or []
-    if not isinstance(person_index, int) or not 0 <= person_index < len(people):
+    if not _valid_person(people, person_index):
         return None
 
     pools = sec.get("pools") or {}
@@ -139,7 +158,7 @@ def build_context(sec: dict, person_index: int) -> Optional[dict]:
                 {r[LD["STATUS"]] for r in rows["leads"]})
 
     ctx = {
-        "person": people[person_index],
+        "person": _person_label(people, person_index),
         "periodFrom": sec.get("periodFrom"),
         "periodTo": sec.get("periodTo"),
         "counts": {k: len(v) for k, v in rows.items()},
@@ -275,7 +294,7 @@ def build_analyst_payload(sec: dict, person_index: int) -> Optional[dict]:
     person's activity.
     """
     people = sec.get("people") or []
-    if not isinstance(person_index, int) or not 0 <= person_index < len(people):
+    if not _valid_person(people, person_index):
         return None
 
     pools = sec.get("pools") or {}
@@ -334,7 +353,7 @@ def build_analyst_payload(sec: dict, person_index: int) -> Optional[dict]:
     }
 
     return {
-        "person": people[person_index],
+        "person": _person_label(people, person_index),
         "periodFrom": sec.get("periodFrom"),
         "periodTo": sec.get("periodTo"),
         "tables": tables,
@@ -379,9 +398,10 @@ def _ranked(agg: Dict[str, List[float]]) -> List[tuple]:
     return out
 
 
-def build_year_summary(months: List[tuple], person: str,
+def build_year_summary(months: List[tuple], person: Optional[str],
                        in_progress: Optional[str] = None) -> Optional[dict]:
-    """Exact month-by-month and full-year figures for one person.
+    """Exact month-by-month and full-year figures for one person, or for
+    everyone in the (already scoped) month files when `person` is None.
 
     `months` is [(YYYY-MM, sec), ...], oldest first, each `sec` already scoped
     to the viewer. Person indices and pool indices both differ between month
@@ -404,10 +424,10 @@ def build_year_summary(months: List[tuple], person: str,
 
     for month, sec in months:
         people = sec.get("people") or []
-        if person not in people:
+        if (person is None and not people) or (person is not None and person not in people):
             per_month.append({"month": month, "absent": True})
             continue
-        ix = people.index(person)
+        ix = ALL_PEOPLE if person is None else people.index(person)
         pools = sec.get("pools") or {}
         rows = {k: _rows_for(sec, k, ix) for k in DATASETS}
 

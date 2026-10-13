@@ -64,6 +64,21 @@
     return (b.balance - a.balance) || a.name.localeCompare(b.name);
   });
 
+  // "All": everyone this viewer can see, taken together. D is already scoped
+  // on the server to the viewer and the people below them, so D.lines is the
+  // whole team. The lines stay in dataset order so Ask AI row ids (built the
+  // same way on the server, salesperson -1) line up with these.
+  var teamEntry = null;
+  if (roster.length > 1) {
+    var teamBal = 0, teamCusts = {};
+    D.lines.forEach(function (ln) { teamBal += ln[L.BAL]; teamCusts[ln[L.CUST]] = 1; });
+    teamEntry = { ix: -1, name: 'All', team: true, lines: D.lines, balance: teamBal,
+                  customers: Object.keys(teamCusts).length, people: roster.length };
+  }
+  function title(person) {
+    return person.team ? 'All · ' + person.people + ' salespeople' : person.name;
+  }
+
   function summarise(lines) {
     var s = { balance: 0, original: 0, buckets: new Array(NB).fill(0), byCust: {}, byTerm: {} };
     lines.forEach(function (ln) {
@@ -211,17 +226,88 @@
     return row;
   }
 
+  // "All" only: each salesperson's share of the team's book, largest first.
+  // A row opens that person's own view.
+  var TEAM_SHOWN = 10;
+  function teamCard(s) {
+    var rows = roster.filter(function (r) { return r.lines.length; }).map(function (r) {
+      var od = 0;
+      r.lines.forEach(function (ln) { for (var k = 1; k < NB; k++) od += ln[L.B0 + k]; });
+      return { r: r, bal: r.balance, overdue: od };
+    }).sort(function (a, b) { return b.bal - a.bal; });
+    var idle = roster.length - rows.length;
+
+    var c = card('By salesperson', rows.length + ' with balances' +
+      (idle ? ' · ' + idle + ' with nothing outstanding' : ''));
+    if (!rows.length) {
+      c.body.appendChild(el('p', 'card-note', 'No one has open receivables.'));
+      return c.root;
+    }
+    var scale = Math.max.apply(null, rows.map(function (t) { return Math.abs(t.bal); })) || 1;
+    var bars = el('div', 'bars cust-bars team-bars');
+    rows.forEach(function (t, i) {
+      var row = el('div', 'bar-row cust-row team-row');
+      row.setAttribute('role', 'button');
+      row.tabIndex = 0;
+      row.title = 'Open ' + t.r.name;
+
+      var meta = el('div', 'bar-meta');
+      meta.appendChild(el('span', 'bar-rank', String(i + 1)));
+      meta.appendChild(el('span', 'bar-name', t.r.name));
+      meta.appendChild(el('span', 'bar-zone', t.r.customers + ' customer' + (t.r.customers === 1 ? '' : 's') +
+        (t.overdue > 0 ? ' · ' + compact(t.overdue) + ' overdue' : '')));
+
+      var line = el('div', 'bar-line');
+      var track = el('div', 'bar-track');
+      var fill = el('div', 'bar-fill' + (t.bal < 0 ? ' neg' : ''));
+      fill.style.width = Math.max(1, Math.abs(t.bal) / scale * 100) + '%';
+      fill.style.background = t.bal < 0 ? 'var(--credit)'
+        : (t.overdue > 0 ? 'var(--sev-3)' : 'var(--ok)');
+      track.appendChild(fill);
+      bindTip(track, t.r.name + ' · ' + money(t.bal) + ' · ' + pct(t.bal, s.balance) + ' of team book' +
+        (t.overdue > 0 ? ' · ' + money(t.overdue) + ' overdue' : ' · nothing overdue'));
+      line.appendChild(track);
+      line.appendChild(el('div', 'bar-val num' + (t.bal < 0 ? ' neg' : ''), money(t.bal)));
+
+      row.appendChild(meta);
+      row.appendChild(line);
+      row.addEventListener('click', function () { select(t.r); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+      row.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+      });
+      bars.appendChild(row);
+    });
+    c.body.appendChild(bars);
+    if (rows.length > TEAM_SHOWN) {
+      var hidden = [].slice.call(bars.children, TEAM_SHOWN);
+      hidden.forEach(function (n) { n.hidden = true; });
+      var more = el('button', 'team-more', 'Show all ' + rows.length);
+      more.type = 'button';
+      more.addEventListener('click', function () {
+        var open = more.getAttribute('aria-expanded') !== 'true';
+        hidden.forEach(function (n) { n.hidden = !open; });
+        more.setAttribute('aria-expanded', String(open));
+        more.textContent = open ? 'Show top ' + TEAM_SHOWN : 'Show all ' + rows.length;
+      });
+      c.body.appendChild(more);
+    }
+    return c.root;
+  }
+
   // ---------------------------------------------------------------- views
   function renderOverview(person, s) {
     var host = document.getElementById('view-overview');
     host.textContent = '';
 
     if (!person.lines.length) {
-      var nc = card(person.name, 'as at ' + fmtDate(D.reportDate));
+      var nc = card(title(person), 'as at ' + fmtDate(D.reportDate));
       var box = el('div', 'notice');
-      box.innerHTML = '<strong>Nothing outstanding.</strong> This person has no ' +
-        'open receivables in the current extract. They still appear here because ' +
-        'they are on the current employee list.';
+      box.innerHTML = person.team
+        ? '<strong>Nothing outstanding.</strong> No one in this team has open ' +
+          'receivables in the current extract.'
+        : '<strong>Nothing outstanding.</strong> This person has no ' +
+          'open receivables in the current extract. They still appear here because ' +
+          'they are on the current employee list.';
       nc.body.appendChild(box);
       host.appendChild(nc.root);
       return;
@@ -278,6 +364,8 @@
     }
     grid.appendChild(ac.root);
     host.appendChild(grid);
+
+    if (person.team) host.appendChild(teamCard(s));
 
     // -- top customers
     var tops = Object.keys(s.byCust).map(function (ci) {
@@ -2465,13 +2553,14 @@
 
   function openList(q) {
     q = (q || '').trim().toLowerCase();
-    filtered = roster.filter(function (r) { return r.name.toLowerCase().indexOf(q) !== -1; });
+    filtered = (teamEntry ? [teamEntry] : []).concat(roster)
+      .filter(function (r) { return r.name.toLowerCase().indexOf(q) !== -1; });
     list.textContent = '';
     if (!filtered.length) {
       list.appendChild(el('div', 'opt-empty', 'No salesperson matches “' + q + '”'));
     } else {
       filtered.forEach(function (r, i) {
-        var o = el('div', 'opt' + (i === cursor ? ' active' : ''));
+        var o = el('div', 'opt' + (r.team ? ' opt-team' : '') + (i === cursor ? ' active' : ''));
         o.setAttribute('role', 'option');
         var n = el('div', 'opt-name');
         if (q) {
@@ -2483,7 +2572,8 @@
         }
         o.appendChild(n);
         o.appendChild(el('div', 'opt-val' + (r.lines.length ? ' num' : ''),
-          r.lines.length ? compact(r.balance) : 'no receivables'));
+          (r.team ? r.people + ' people · ' : '') +
+          (r.lines.length ? compact(r.balance) : 'no receivables')));
         o.addEventListener('mousedown', function (e) { e.preventDefault(); select(r); });
         list.appendChild(o);
       });
@@ -2582,7 +2672,8 @@
   var saved = null;
   try { saved = localStorage.getItem('nutaste-ar-sp'); } catch (e) { /* ignore */ }
   if (saved) {
-    var match = roster.filter(function (r) { return r.name === saved; })[0];
+    var match = (teamEntry && saved === teamEntry.name) ? teamEntry
+      : roster.filter(function (r) { return r.name === saved; })[0];
     if (match) select(match);
   }
   // Someone who can see only their own book has nothing to pick.

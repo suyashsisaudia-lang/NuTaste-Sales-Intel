@@ -384,6 +384,16 @@ h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 600; letter-spacing: -0
 .opt-name mark { background: transparent; color: var(--accent); font-weight: 700; }
 .opt-val { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
 .opt-empty { padding: 14px 10px; color: var(--ink-3); text-align: center; }
+/* "All" (the viewer's whole team) heads the name list */
+.opt.opt-team { border-bottom: 1px solid var(--hairline); border-radius: 0; margin-bottom: 4px; }
+.opt.opt-team .opt-name { font-weight: 700; }
+.team-row { cursor: pointer; border-radius: 8px; }
+.team-row:hover, .team-row:focus-visible { background: var(--accent-soft); }
+.team-row[hidden] { display: none; }
+.team-more { margin-top: 12px; padding: 6px 12px; border: 1px solid var(--hairline);
+  border-radius: var(--r-sm); background: transparent; color: var(--accent);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.team-more:hover { background: var(--accent-soft); }
 
 /* ------------------------------------------------------ section switch */
 /* A segmented control. motion.js adds a sliding pill (.ink) under the chosen

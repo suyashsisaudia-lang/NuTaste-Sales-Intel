@@ -22,6 +22,26 @@ MAX_CUSTOMERS_IN_PROMPT = 120
 
 SORTS = {"oldest", "newest", "largest", "smallest"}
 GROUP_BYS = {"zone", "term", "customer"}
+
+# The "All" entry in the name picker: every salesperson the viewer can see,
+# taken together. The dataset passed in is already scoped to the viewer, so
+# "all" never reaches beyond what the page itself shows.
+ALL_PEOPLE = -1
+
+
+def _valid_person(people: list, sp_index: Any) -> bool:
+    return isinstance(sp_index, int) and (
+        (sp_index == ALL_PEOPLE and len(people) > 0) or 0 <= sp_index < len(people))
+
+
+def _person_label(people: list, sp_index: int) -> str:
+    if sp_index == ALL_PEOPLE:
+        return f"All - combined book of {len(people)} salespeople"
+    return people[sp_index]
+
+
+def _is_theirs(ln: list, sp_index: int) -> bool:
+    return sp_index == ALL_PEOPLE or ln[0] == sp_index
 AGGREGATES = {"average", "percent"}
 
 # --------------------------------------------------------------------- context
@@ -51,7 +71,7 @@ def build_context(ar: dict, sp_index: int) -> Optional[dict]:
     to recognise which customer was meant; it never needs to know what they owe.
     """
     people = ar.get("salespeople") or []
-    if not isinstance(sp_index, int) or not 0 <= sp_index < len(people):
+    if not _valid_person(people, sp_index):
         return None
 
     customers = ar.get("customers") or []
@@ -60,7 +80,7 @@ def build_context(ar: dict, sp_index: int) -> Optional[dict]:
     # Only the customers and zones this person actually has lines for. A rep
     # asking about "Sharma" should not be able to resolve it against another
     # rep's account.
-    cust_ids = {ln[1] for ln in ar.get("lines", []) if ln[0] == sp_index}
+    cust_ids = {ln[1] for ln in ar.get("lines", []) if _is_theirs(ln, sp_index)}
     names, zones = [], set()
     for ci in sorted(cust_ids):
         if 0 <= ci < len(customers):
@@ -69,7 +89,7 @@ def build_context(ar: dict, sp_index: int) -> Optional[dict]:
                 zones.add(customers[ci][2])
 
     return {
-        "salesperson": people[sp_index],
+        "salesperson": _person_label(people, sp_index),
         "reportDate": ar.get("reportDate"),
         "bucketLabels": labels,
         "bucketRanges": _bucket_ranges(labels),
@@ -218,7 +238,7 @@ def build_rows(ar: dict, sp_index: int) -> Optional[dict]:
     carried alongside each pick so the browser can prove that before using it.
     """
     people = ar.get("salespeople") or []
-    if not isinstance(sp_index, int) or not 0 <= sp_index < len(people):
+    if not _valid_person(people, sp_index):
         return None
 
     customers = ar.get("customers") or []
@@ -228,7 +248,7 @@ def build_rows(ar: dict, sp_index: int) -> Optional[dict]:
 
     rows, docs = [], []
     for ln in ar.get("lines", []):
-        if ln[0] != sp_index:
+        if not _is_theirs(ln, sp_index):
             continue
         rid = len(rows)
         ci = ln[1]
@@ -246,7 +266,7 @@ def build_rows(ar: dict, sp_index: int) -> Optional[dict]:
         return None
 
     return {
-        "salesperson": people[sp_index],
+        "salesperson": _person_label(people, sp_index),
         "reportDate": ar.get("reportDate"),
         "rows": rows[:MAX_ROWS_IN_PROMPT],
         "docs": docs,                       # rid -> document number, for the integrity check

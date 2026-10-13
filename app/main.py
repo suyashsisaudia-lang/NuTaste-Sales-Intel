@@ -878,7 +878,7 @@ def _ask_rate_limited(key: str) -> bool:
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=1)
-    salesperson: int = Field(ge=0)
+    salesperson: int = Field(ge=-1)        # -1 = "All": everyone the viewer can see
     # "" or absent means Auto. Any other value must be a model the key can see;
     # it is checked against the catalogue before use, never passed through.
     model: Optional[str] = Field(default=None, max_length=100)
@@ -992,7 +992,7 @@ def api_ask(request: Request, body: AskRequest):
 # computes every figure from the real rows. See app/ask_sec.py.
 class AskSecRequest(BaseModel):
     question: str = Field(min_length=1)
-    person: int = Field(ge=0)
+    person: int = Field(ge=-1)             # -1 = "All": everyone the viewer can see
     model: Optional[str] = Field(default=None, max_length=100)
     # The month on screen. Person indices differ between months, so the
     # question must be answered from the same file the page was built from.
@@ -1045,8 +1045,9 @@ def api_ask_sec(request: Request, body: AskSecRequest):
             "narrate": settings.ask_narrate}
 
 
-def _sec_year_summary(viewer: users.Viewer, sec: dict, person: str) -> Optional[dict]:
+def _sec_year_summary(viewer: users.Viewer, sec: dict, person: Optional[str]) -> Optional[dict]:
     """The person's full calendar year, as exact aggregates, for the analyst.
+    `person` None means everyone the viewer can see (the "All" entry).
 
     The year is the one the month on screen falls in. Every month file is scoped
     to the same viewer as the month on screen, so this reaches no one the page
@@ -1108,7 +1109,8 @@ def api_ask_sec_analyst(request: Request, body: AskSecRequest):
     payload = ask_sec_mod.build_analyst_payload(sec, body.person)
     if payload is None:
         return {"ok": False, "reason": "no-data"}
-    payload["year"] = _sec_year_summary(viewer, sec, payload["person"])
+    payload["year"] = _sec_year_summary(
+        viewer, sec, None if body.person == ask_sec_mod.ALL_PEOPLE else payload["person"])
     if not any(t["lines"] for t in payload["tables"].values()) and not payload["year"]:
         # No rows at all for this person: there is nothing to analyse, and the
         # page says so itself without spending a call.

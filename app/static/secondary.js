@@ -57,6 +57,26 @@
            a.name.localeCompare(b.name);
   });
 
+  // "All": everyone this viewer can see, taken together. S is already scoped
+  // on the server to the viewer and the people below them, so its tables are
+  // the whole team. Ask AI sends person -1 for it, which the server reads the
+  // same way.
+  var teamEntry = null;
+  if (roster.length > 1) {
+    teamEntry = {
+      ix: -1, name: 'All', team: true, people: roster.length,
+      d: { visits: S.visits, demos: S.demos, leads: S.leads,
+           travel: S.travel, expenses: S.expenses, sales: S.sales },
+      visits: S.visits.length,
+      salesValue: S.sales.reduce(function (a, r) { return a + r[SL.VAL]; }, 0)
+    };
+  }
+  function title(person) {
+    return person.team ? 'All · ' + person.people + ' people' : person.name;
+  }
+  // How a sentence names the selection: "Asha Rao has no demos", "This team has no demos".
+  function who(person) { return person.team ? 'This team' : person.name; }
+
   // ---------------------------------------------------------------- utils
   function money(n) {
     var v = Math.round(n || 0);
@@ -227,6 +247,76 @@
       .sort(function (a, b) { return b[1] - a[1]; }).slice(0, n || 10);
   }
 
+  // "All" only: each person's secondary sales and field activity, largest
+  // sales first. A row opens that person's own view.
+  var TEAM_SHOWN = 10;
+  function teamCard(s) {
+    var rows = roster.filter(function (r) {
+      var d = r.d;
+      return d.visits.length || d.demos.length || d.leads.length || d.sales.length ||
+             d.travel.length || d.expenses.length;
+    }).slice().sort(function (a, b) {
+      return (b.salesValue - a.salesValue) || (b.visits - a.visits) || a.name.localeCompare(b.name);
+    });
+    var idle = roster.length - rows.length;
+
+    var c = card('By person', rows.length + ' with activity' +
+      (idle ? ' · ' + idle + ' with none' : ''));
+    if (!rows.length) {
+      c.body.appendChild(el('p', 'card-note', 'No one has activity in this period.'));
+      return c.root;
+    }
+    var scale = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.salesValue); })) || 1;
+    var bars = el('div', 'bars cust-bars team-bars');
+    rows.forEach(function (r, i) {
+      var row = el('div', 'bar-row cust-row team-row');
+      row.setAttribute('role', 'button');
+      row.tabIndex = 0;
+      row.title = 'Open ' + r.name;
+
+      var meta = el('div', 'bar-meta');
+      meta.appendChild(el('span', 'bar-rank', String(i + 1)));
+      meta.appendChild(el('span', 'bar-name', r.name));
+      meta.appendChild(el('span', 'bar-zone', r.visits + ' visit' + (r.visits === 1 ? '' : 's') +
+        ' · ' + r.d.demos.length + ' demo' + (r.d.demos.length === 1 ? '' : 's') +
+        ' · ' + r.d.leads.length + ' lead' + (r.d.leads.length === 1 ? '' : 's')));
+
+      var line = el('div', 'bar-line');
+      var track = el('div', 'bar-track');
+      var fill = el('div', 'bar-fill');
+      fill.style.width = (r.salesValue ? Math.max(1, Math.abs(r.salesValue) / scale * 100) : 0) + '%';
+      fill.style.background = 'var(--ok)';
+      track.appendChild(fill);
+      bindTip(track, r.name + ' · ' + money(r.salesValue) + ' · ' +
+        pctOf(r.salesValue, s.salesValue) + ' of team sales');
+      line.appendChild(track);
+      line.appendChild(el('div', 'bar-val num', money(r.salesValue)));
+
+      row.appendChild(meta);
+      row.appendChild(line);
+      row.addEventListener('click', function () { select(r); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+      row.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+      });
+      bars.appendChild(row);
+    });
+    c.body.appendChild(bars);
+    if (rows.length > TEAM_SHOWN) {
+      var hidden = [].slice.call(bars.children, TEAM_SHOWN);
+      hidden.forEach(function (n) { n.hidden = true; });
+      var more = el('button', 'team-more', 'Show all ' + rows.length);
+      more.type = 'button';
+      more.addEventListener('click', function () {
+        var open = more.getAttribute('aria-expanded') !== 'true';
+        hidden.forEach(function (n) { n.hidden = !open; });
+        more.setAttribute('aria-expanded', String(open));
+        more.textContent = open ? 'Show top ' + TEAM_SHOWN : 'Show all ' + rows.length;
+      });
+      c.body.appendChild(more);
+    }
+    return c.root;
+  }
+
   // ---------------------------------------------------------------- views
   function renderOverview(person, s) {
     var host = document.getElementById('sec-overview');
@@ -235,12 +325,16 @@
     var nothing = !s.visits && !s.demos && !s.leads && !s.salesValue &&
                   !s.km && !s.expense;
     if (nothing) {
-      var nc = card(person.name, periodLabel());
+      var nc = card(title(person), periodLabel());
       var box = el('div', 'notice');
-      box.innerHTML = '<strong>No activity recorded in this period.</strong> ' +
-        'This person has no visits, demos, leads, secondary sales, travel or ' +
-        'expenses between ' + periodLabel() + '. They still appear here because ' +
-        'they are on the current employee list.';
+      box.innerHTML = person.team
+        ? '<strong>No activity recorded in this period.</strong> No one in this team ' +
+          'has visits, demos, leads, secondary sales, travel or expenses between ' +
+          periodLabel() + '.'
+        : '<strong>No activity recorded in this period.</strong> ' +
+          'This person has no visits, demos, leads, secondary sales, travel or ' +
+          'expenses between ' + periodLabel() + '. They still appear here because ' +
+          'they are on the current employee list.';
       nc.body.appendChild(box);
       host.appendChild(nc.root);
       return;
@@ -302,12 +396,14 @@
     g.appendChild(dc.root);
     host.appendChild(g);
 
+    if (person.team) host.appendChild(teamCard(s));
+
     // ---- top customers by sales value
     var buyers = topEntries(s.byBuyer, 10);
     var bc = card('Top customers by secondary sales', buyers.length + ' of ' +
       Object.keys(s.byBuyer).length + ' shown');
     if (!buyers.length) {
-      bc.body.appendChild(el('p', 'card-note', 'No secondary sales recorded for this person.'));
+      bc.body.appendChild(el('p', 'card-note', 'No secondary sales recorded' + (person.team ? '.' : ' for this person.')));
     } else {
       var bmax = buyers[0][1];
       var bb = el('div', 'bars');
@@ -326,7 +422,7 @@
     var ic = card('Top items by secondary sales', items.length + ' of ' +
       Object.keys(itemVals).length + ' shown');
     if (!items.length) {
-      ic.body.appendChild(el('p', 'card-note', 'No secondary sales recorded for this person.'));
+      ic.body.appendChild(el('p', 'card-note', 'No secondary sales recorded' + (person.team ? '.' : ' for this person.')));
     } else {
       var imax = items[0][1];
       var ib = el('div', 'bars');
@@ -382,6 +478,13 @@
     var host = document.getElementById('sec-activity');
     host.textContent = '';
     var d = person.d;
+    // On "All", put the person's name after the date so every row says whose it is.
+    function withPerson(cols, rows, numFrom, srcRows) {
+      if (!person.team) return table(cols, rows, numFrom);
+      return table([cols[0], 'Person'].concat(cols.slice(1)),
+        rows.map(function (r, i) { return [r[0], S.people[srcRows[i][0]]].concat(r.slice(1)); }),
+        numFrom + 1);
+    }
 
     // ---- items sold, every one of them, largest first
     var itemKeys = Object.keys(s.byItem).sort(function (a, b) {
@@ -408,14 +511,15 @@
     if (!d.visits.length) {
       vc.body.appendChild(el('p', 'card-note', 'No visits recorded.'));
     } else {
-      var vrows = d.visits.slice().sort(function (a, b) { return a[V.DAY] - b[V.DAY]; })
-        .slice(0, 200).map(function (r) {
+      var vsrc = d.visits.slice().sort(function (a, b) { return a[V.DAY] - b[V.DAY]; })
+        .slice(0, 200);
+      var vrows = vsrc.map(function (r) {
           return [dayLabel(r[V.DAY]), pv('buyer', r[V.BUYER]), pv('vtype', r[V.TYPE]),
                   pv('city', r[V.CITY]), pv('channel', r[V.CHAN]),
                   r[V.MINS] ? r[V.MINS] + ' min' : '—'];
         });
-      vc.body.appendChild(table(['Date', 'Outlet', 'Type', 'City', 'Channel', 'Duration'],
-        vrows, 5));
+      vc.body.appendChild(withPerson(['Date', 'Outlet', 'Type', 'City', 'Channel', 'Duration'],
+        vrows, 5, vsrc));
       if (d.visits.length > 200) {
         vc.body.appendChild(el('p', 'card-note', '+ ' + (d.visits.length - 200) + ' more not shown'));
       }
@@ -427,13 +531,13 @@
     if (!d.demos.length) {
       dc.body.appendChild(el('p', 'card-note', 'No demos recorded.'));
     } else {
-      var drows = d.demos.slice().sort(function (a, b) { return b[DM.VAL] - a[DM.VAL]; })
-        .map(function (r) {
+      var dsrc = d.demos.slice().sort(function (a, b) { return b[DM.VAL] - a[DM.VAL]; });
+      var drows = dsrc.map(function (r) {
           return [dayLabel(r[DM.DAY]), pv('buyer', r[DM.BUYER]), pv('region', r[DM.REGION]),
                   pv('stage', r[DM.STAGE]), r[DM.CONV] ? 'Yes' : 'No', money(r[DM.VAL])];
         });
-      dc.body.appendChild(table(['Date', 'Customer', 'Region', 'Stage', 'Converted', 'Est. value'],
-        drows, 5));
+      dc.body.appendChild(withPerson(['Date', 'Customer', 'Region', 'Stage', 'Converted', 'Est. value'],
+        drows, 5, dsrc));
     }
     host.appendChild(dc.root);
 
@@ -442,13 +546,13 @@
     if (!d.leads.length) {
       lc.body.appendChild(el('p', 'card-note', 'No leads recorded.'));
     } else {
-      var lrows = d.leads.slice().sort(function (a, b) { return b[LD.VAL] - a[LD.VAL]; })
-        .map(function (r) {
+      var lsrc = d.leads.slice().sort(function (a, b) { return b[LD.VAL] - a[LD.VAL]; });
+      var lrows = lsrc.map(function (r) {
           return [dayLabel(r[LD.DAY]), pv('buyer', r[LD.BUYER]), pv('city', r[LD.CITY]),
                   pv('lstage', r[LD.STAGE]), pv('status', r[LD.STATUS]), money(r[LD.VAL])];
         });
-      lc.body.appendChild(table(['Date', 'Company', 'City', 'Stage', 'Status', 'Est. value'],
-        lrows, 5));
+      lc.body.appendChild(withPerson(['Date', 'Company', 'City', 'Stage', 'Status', 'Est. value'],
+        lrows, 5, lsrc));
     }
     host.appendChild(lc.root);
 
@@ -648,7 +752,7 @@
         return {
           empty: true, emptyTable: true,
           big: '—', head: 'No ' + ds.many + ' recorded',
-          note: person.name + ' has no ' + ds.many + ' at all in ' + period +
+          note: who(person) + ' has no ' + ds.many + ' at all in ' + period +
                 (others.length
                   ? '. This month only has ' + joinLabels(others) + ' for this person.'
                   : '.'),
@@ -1675,7 +1779,7 @@
     if (!hasRows) {
       var nc = card('Ask your own question', periodLabel());
       var box = el('div', 'notice');
-      box.innerHTML = '<strong>Nothing to ask about yet.</strong> ' + esc(person.name) +
+      box.innerHTML = '<strong>Nothing to ask about yet.</strong> ' + esc(who(person)) +
         ' has no visits, demos, leads, secondary sales, travel or expenses recorded ' +
         'in ' + periodLabel() + ', so there is no data here to answer questions from.';
       nc.body.appendChild(box);
@@ -1819,7 +1923,7 @@
     var missing = DS_ORDER.filter(function (k) { return present.indexOf(k) === -1; });
     if (missing.length) {
       var gap = el('div', 'notice');
-      gap.innerHTML = '<strong>' + esc(person.name) + ' has no ' + esc(joinLabels(missing)) +
+      gap.innerHTML = '<strong>' + esc(who(person)) + ' has no ' + esc(joinLabels(missing)) +
         '</strong> recorded in ' + periodLabel() + ', so questions about ' +
         (missing.length === 1 ? 'that' : 'those') + ' have nothing to answer from. ' +
         'This month has ' + esc(joinLabels(present)) + '.';
@@ -1853,13 +1957,14 @@
 
   function openList(q) {
     q = (q || '').trim().toLowerCase();
-    filtered = roster.filter(function (r) { return r.name.toLowerCase().indexOf(q) !== -1; });
+    filtered = (teamEntry ? [teamEntry] : []).concat(roster)
+      .filter(function (r) { return r.name.toLowerCase().indexOf(q) !== -1; });
     list.textContent = '';
     if (!filtered.length) {
       list.appendChild(el('div', 'opt-empty', 'No one matches “' + q + '”'));
     } else {
       filtered.forEach(function (r, i) {
-        var o = el('div', 'opt' + (i === cursor ? ' active' : ''));
+        var o = el('div', 'opt' + (r.team ? ' opt-team' : '') + (i === cursor ? ' active' : ''));
         o.setAttribute('role', 'option');
         var n = el('div', 'opt-name');
         if (q) {
@@ -1871,8 +1976,9 @@
         }
         o.appendChild(n);
         o.appendChild(el('div', 'opt-val' + (r.visits ? ' num' : ''),
-          r.visits ? r.visits + ' visits'
-                   : (r.salesValue ? compact(r.salesValue) : 'no activity')));
+          r.team ? r.people + ' people · ' + compact(r.salesValue)
+                 : r.visits ? r.visits + ' visits'
+                 : (r.salesValue ? compact(r.salesValue) : 'no activity')));
         o.addEventListener('mousedown', function (e) { e.preventDefault(); select(r); });
         list.appendChild(o);
       });
@@ -2007,7 +2113,8 @@
   var saved = null;
   try { saved = localStorage.getItem('nutaste-sec-person'); } catch (e) { /* ignore */ }
   if (saved) {
-    var m = roster.filter(function (r) { return r.name === saved; })[0];
+    var m = (teamEntry && saved === teamEntry.name) ? teamEntry
+      : roster.filter(function (r) { return r.name === saved; })[0];
     if (m) select(m);
   }
   // Someone who can see only their own activity has nothing to pick.
