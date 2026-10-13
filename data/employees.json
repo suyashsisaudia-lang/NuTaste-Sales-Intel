@@ -6,7 +6,11 @@
   "EXT001",
   "EXT002",
   "EXT003",
-  "EXT004"
+  "EXT004",
+  "EM463",
+  "EM355",
+  "EXT005",
+  "EXT006"
  ],
  "aliases": {
   "amarendrakumarsharma": "EM196",
@@ -659,6 +663,26 @@
   "EXT004": {
    "name": "M Bajaj",
    "email": "bajajm@nutasteworld.com",
+   "status": "Existing",
+   "manager": "",
+   "designation": "",
+   "location": "",
+   "subdept": "",
+   "manual": true
+  },
+  "EXT005": {
+   "name": "R Kamath",
+   "email": "rkamath@nutasteworld.com",
+   "status": "Existing",
+   "manager": "",
+   "designation": "",
+   "location": "",
+   "subdept": "",
+   "manual": true
+  },
+  "EXT006": {
+   "name": "Admin",
+   "email": "admin@nutasteworld.com",
    "status": "Existing",
    "manager": "",
    "designation": "",
