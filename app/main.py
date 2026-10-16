@@ -17,6 +17,7 @@ that writes data/ar_data.json — nothing else needs to change.
 import html
 import json
 import logging
+import logging.handlers
 import os
 import re
 import secrets
@@ -49,6 +50,36 @@ from .providers import ProviderError, get_provider
 log = logging.getLogger("nutaste.ask")
 
 BASE = Path(__file__).resolve().parent
+
+
+def _setup_app_logging() -> None:
+    """Send the app's own INFO messages (scheduler, refresh, push) somewhere.
+
+    Without this only WARNING and above reach stderr. They go to stderr (Render's
+    log view; web-err.log on the PC) and to logs/app.log, which, unlike
+    web-err.log, is not wiped when uvicorn restarts.
+    """
+    root = logging.getLogger("nutaste")
+    if root.handlers:                   # uvicorn --reload imports twice
+        return
+    root.setLevel(logging.INFO)
+    fmt = logging.Formatter("%(asctime)s  %(levelname)-7s %(name)s: %(message)s",
+                            "%Y-%m-%d %H:%M:%S")
+    handlers: List[logging.Handler] = [logging.StreamHandler()]
+    try:
+        log_dir = BASE.parent / "logs"
+        log_dir.mkdir(exist_ok=True)
+        handlers.append(logging.handlers.RotatingFileHandler(
+            log_dir / "app.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8"))
+    except OSError:                     # read-only image: stderr alone is fine
+        pass
+    for h in handlers:
+        h.setFormatter(fmt)
+        root.addHandler(h)
+
+
+_setup_app_logging()
+
 DATA_DIR = Path(settings.data_dir)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 AR_PATH = DATA_DIR / "ar_data.json"

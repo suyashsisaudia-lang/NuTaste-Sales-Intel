@@ -6,3 +6,4 @@ data/*.tmp
 data/credentials.json
 initial-passwords-*.csv
 backups/
+logs/app.log*

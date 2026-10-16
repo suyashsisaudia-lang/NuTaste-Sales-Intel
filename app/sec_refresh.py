@@ -25,6 +25,10 @@ log = logging.getLogger("nutaste.refresh")
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 RETRY_MINUTES = 60
 MAX_RETRIES = 3
+# The scheduler re-reads the wall clock this often instead of sleeping until
+# the run is due: on a laptop, standby can stretch one long wait well past
+# the slot (16 Oct: 11:00 run missed after ~30 min of standby).
+CHECK_SECONDS = 60
 
 class RefreshError(Exception):
     """A refresh failed; the message is shown to the admin."""
@@ -144,7 +148,7 @@ class Scheduler:
         while not self._stop.is_set():
             wait = (self.next_run - self.schedule.now()).total_seconds()
             if wait > 0:
-                self._stop.wait(min(wait, 3600))
+                self._stop.wait(min(wait, CHECK_SECONDS))
                 continue
             ok = False
             try:
