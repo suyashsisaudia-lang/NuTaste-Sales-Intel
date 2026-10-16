@@ -1,7 +1,7 @@
 {
   "ar": {
-    "updated": "2026-10-16 11:29:43",
-    "source": "Business Central API, scheduled (ageing as at 2026-10-16)"
+    "updated": "2026-10-16 11:30:52",
+    "source": "Business Central API, manual (ageing as at 2026-10-16)"
   },
   "sec": {
     "updated": "2026-10-13 12:39:24",
@@ -14,9 +14,9 @@
     "trigger": "manual: name-matching fix"
   },
   "arRefresh": {
-    "lastAttempt": "2026-10-16T11:29:43+05:30",
+    "lastAttempt": "2026-10-16T11:30:52+05:30",
     "ok": true,
     "message": "Imported 1855 lines for 55 salespeople from Business Central, ageing as at 2026-10-16. 13 salesperson name(s) match nobody in the employee directory and stay hidden: Akash Vikas Chitnis, Shivendra Singh, Mimansa Mishra, Mohammed Ismail Faheem, Lalit Kumar, Gunasegaran S, Kartik Pawar, Khiven Goyal",
-    "trigger": "scheduled"
+    "trigger": "manual"
   }
 }
