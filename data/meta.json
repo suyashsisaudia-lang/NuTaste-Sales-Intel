@@ -4,14 +4,14 @@
     "source": "Business Central API, scheduled (ageing as at 2026-10-19)"
   },
   "sec": {
-    "updated": "2026-10-13 12:39:24",
-    "source": "SharePoint re-import, name-matching fix (2026-10)"
+    "updated": "2026-10-19 11:00:37",
+    "source": "SharePoint auto-refresh, scheduled (2026-10)"
   },
   "secRefresh": {
-    "lastAttempt": "2026-10-13T12:39:24+05:30",
+    "lastAttempt": "2026-10-19T11:00:37+05:30",
     "ok": true,
-    "message": "Imported 10 months (2026-01 to 2026-10) from SharePoint; default view 2026-10",
-    "trigger": "manual: name-matching fix"
+    "message": "Imported 10 months (2026-01 to 2026-10) from SharePoint (24.9 MB); default view 2026-10",
+    "trigger": "scheduled"
   },
   "arRefresh": {
     "lastAttempt": "2026-10-19T11:00:04+05:30",
