@@ -613,7 +613,23 @@ table.rep thead th {
   position: sticky; top: 0; z-index: 2;
   background: var(--brand); color: #fff;
   font-size: 11px; font-weight: 600; letter-spacing: .02em;
+  line-height: 16px; /* fixed, so the frozen grand total can sit exactly below */
   text-align: right;
+}
+/* Freeze panes: report tables scroll inside their own box, sized to fit below
+   the pinned chrome (--chrome-h, measured in motion.js), so the column headers
+   (and the receivables grand total) stay put while the rows scroll, and the
+   horizontal scrollbar is always in view. */
+#view-report .table-scroll, #sec-activity .table-scroll {
+  overflow: auto;
+  max-height: max(260px, calc(100vh - var(--chrome-h, 180px) - 24px));
+  max-height: max(260px, calc(100dvh - var(--chrome-h, 180px) - 24px));
+}
+table.rep tr.grand td { position: sticky; top: 30px; z-index: 1; }
+#sec-activity .mini th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--surface);
+  box-shadow: inset 0 -1px var(--hairline); /* collapsed borders don't travel with sticky cells */
 }
 table.rep thead th:nth-child(-n+4) { text-align: left; }
 table.rep td.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }

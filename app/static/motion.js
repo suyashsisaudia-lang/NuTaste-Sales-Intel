@@ -31,10 +31,18 @@
     if (topbar) {
       var measure = function () {
         chrome.style.setProperty('--topbar-h', topbar.offsetHeight + 'px');
+        // Height that stays pinned on screen (its sticky top is negative on
+        // phones): report tables size their frozen-header scroll box to fit below it.
+        var top = parseFloat(getComputedStyle(chrome).top) || 0;
+        document.documentElement.style.setProperty('--chrome-h', (chrome.offsetHeight + top) + 'px');
       };
       measure();
       window.addEventListener('resize', measure, { passive: true });
-      if (window.ResizeObserver) new ResizeObserver(measure).observe(topbar);
+      if (window.ResizeObserver) {
+        var ro = new ResizeObserver(measure);
+        ro.observe(topbar);
+        ro.observe(chrome);
+      }
     }
   }
 
