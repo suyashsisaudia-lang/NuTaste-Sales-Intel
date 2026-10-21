@@ -31,7 +31,7 @@
 .splash-tag { font-size: 11px; font-weight: 600; letter-spacing: .3em; text-transform: uppercase;
               color: rgba(238,244,240,.55); animation: view-in .8s var(--ease-out) .6s both; }
 
-/* ------------------------------------------------------- product banner */
+/* ------------------------------------------------------- welcome banner */
 .hero-strip {
   position: relative; overflow: hidden; isolation: isolate;
   height: clamp(210px, 22vw, 270px);
@@ -47,18 +47,6 @@
 }
 .splash-on .hero-strip { animation-delay: 1.9s; }
 
-/* Photo fills the right ~64%; its left edge melts into the brand green. */
-.hs-media { position: absolute; top: -12%; bottom: -12%; right: 0; width: 66%; z-index: 0; will-change: transform;
-            -webkit-mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.35) 14%, rgba(0,0,0,.8) 30%, #000 46%);
-            mask-image: linear-gradient(90deg, transparent 0%, rgba(0,0,0,.35) 14%, rgba(0,0,0,.8) 30%, #000 46%); }
-.hs-slide { position: absolute; inset: 0; opacity: 0; transition: opacity 1.4s ease; overflow: hidden; }
-.hs-slide.on { opacity: 1; }
-.hs-slide img { width: 100%; height: 100%; object-fit: cover; display: block; transform: scale(1.1); }
-.hs-slide.on img { animation: kenburns 7s cubic-bezier(.2,.6,.3,1) forwards; }
-@keyframes kenburns {
-  from { transform: scale(1.16) translate(var(--kx, 0), var(--ky, 0)); }
-  to   { transform: scale(1.02) translate(0, 0); }
-}
 .hs-shade {
   position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background:
@@ -109,26 +97,6 @@
 @keyframes nt-rise { to { transform: none; opacity: 1; } }
 @keyframes nt-ping { 0% { box-shadow: 0 0 0 0 rgba(62,196,111,.6); } 80%, 100% { box-shadow: 0 0 0 10px rgba(62,196,111,0); } }
 
-/* Glass label naming the product on screen. */
-.hs-product {
-  position: absolute; z-index: 2; right: 18px; bottom: 16px;
-  display: flex; flex-direction: column; gap: 1px;
-  padding: 9px 14px 10px; border-radius: 14px;
-  background: rgba(4,33,15,.45); border: 1px solid rgba(255,255,255,.14);
-  -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3);
-  color: #fff; text-align: right;
-}
-.hs-product.swap > * { animation: label-in .7s var(--ease-out) both; }
-.hs-product.swap .hs-p-name { animation-delay: .07s; }
-@keyframes label-in { from { opacity: 0; transform: translateY(8px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
-.hs-p-tag { font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.62); }
-.hs-p-name { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
-
-.hs-dots { position: absolute; z-index: 2; left: clamp(22px, 3.4vw, 44px); bottom: 16px; display: flex; gap: 6px; }
-.hs-dot { width: 18px; height: 3px; padding: 0; border: 0; border-radius: 3px; cursor: pointer;
-          background: rgba(255,255,255,.25); transition: width .5s var(--ease-out), background .3s; }
-.hs-dot:hover { background: rgba(255,255,255,.5); }
-.hs-dot.on { width: 34px; background: #3ec46f; }
 
 /* ---------------------------------------------------- welcome showcase */
 .empty.showcase {
@@ -230,14 +198,12 @@
   .sc-copy { align-items: center; }
   .fan { height: 260px; }
   .hs-copy { max-width: 80%; }
-  .hs-media { width: 100%; -webkit-mask-image: none; mask-image: none; }
   .hs-shade { background: linear-gradient(90deg, rgba(4,33,15,.95) 0%, rgba(4,33,15,.72) 55%, rgba(4,33,15,.25) 100%),
                            linear-gradient(0deg, rgba(4,33,15,.6) 0%, transparent 45%); }
 }
 @media (max-width: 640px) {
   .hero-strip { height: 210px; border-radius: 18px; margin-bottom: 16px; }
   .hs-copy { max-width: 100%; padding-right: 20px; }
-  .hs-product { display: none; }
   .fan-card { width: 132px; }
   .range { padding: 4px 13px 28px; }
   .range-card { width: 170px; }

@@ -86,78 +86,11 @@
     });
   });
 
-  // ------------------------------------------------------- product banner
+  // ------------------------------------------------------- welcome banner
   var hero = document.getElementById('hero-strip');
   if (hero) buildHero(hero);
 
   function buildHero(hero) {
-    var media = hero.querySelector('.hs-media');
-    var dotsBox = hero.querySelector('.hs-dots');
-    var pTag = hero.querySelector('.hs-p-tag'), pName = hero.querySelector('.hs-p-name');
-    var product = hero.querySelector('.hs-product');
-    var slides = [], dots = [], at = -1, timer = null;
-
-    PRODUCTS.forEach(function (p, i) {
-      var s = el('div', 'hs-slide');
-      // The two lead photos (one per module) load at once; the rest follow
-      // after page load, and any slide fetches its photo the moment it shows.
-      var im = el('img');
-      im.alt = ''; im.decoding = 'async';
-      // the banner photo spans the page on phones and ~2/3 of it above 900px
-      im.sizes = '(max-width: 900px) 100vw, 66vw';
-      im.setAttribute('data-src', p.img);
-      im.setAttribute('data-srcset', p.srcset);
-      if (i === 0 || i === 4) { im.srcset = p.srcset; im.src = p.img; }
-      im.style.objectPosition = p.pos;
-      // Each slide drifts a slightly different way.
-      s.style.setProperty('--kx', ((i % 3) - 1) * 2 + '%');
-      s.style.setProperty('--ky', ((i % 2) ? -1.5 : 1.5) + '%');
-      s.appendChild(im);
-      media.appendChild(s);
-      slides.push(s);
-
-      var d = el('button', 'hs-dot');
-      d.type = 'button';
-      d.setAttribute('aria-label', 'Show ' + p.name);
-      d.addEventListener('click', function () { go(i); restart(); });
-      dotsBox.appendChild(d);
-      dots.push(d);
-    });
-
-    function go(i) {
-      if (i === at) return;
-      if (at >= 0) { slides[at].classList.remove('on'); dots[at].classList.remove('on'); }
-      at = (i + slides.length) % slides.length;
-      loadSlide(at);
-      loadSlide((at + 1) % slides.length);
-      slides[at].classList.add('on');
-      dots[at].classList.add('on');
-      var p = PRODUCTS[at];
-      product.classList.remove('swap');
-      void product.offsetWidth;                // restart the label animation
-      pTag.textContent = p.tag;
-      pName.textContent = p.name;
-      product.classList.add('swap');
-    }
-    function loadSlide(k) {
-      var im = slides[k].querySelector('img');
-      if (!im.getAttribute('src')) {
-        im.srcset = im.getAttribute('data-srcset');
-        im.src = im.getAttribute('data-src');
-      }
-    }
-    window.addEventListener('load', function () {
-      setTimeout(function () { slides.forEach(function (s, k) { loadSlide(k); }); }, 400);
-    });
-    function restart() {
-      if (reduce) return;
-      clearInterval(timer);
-      timer = setInterval(function () { if (!document.hidden) go(at + 1); }, 5200);
-    }
-    // Each module opens on its own lead product.
-    go(0);
-    restart();
-
     // ---- copy: greeting, whose book, which view
     var modLabel = hero.querySelector('#hs-module'), dateEl = hero.querySelector('#hs-date');
     var greetEl = hero.querySelector('#hs-greet'), nameEl = hero.querySelector('#hs-name');
@@ -175,7 +108,6 @@
              activity: 'Every visit and activity, day by day.',
              ask:      'Ask a question about your month in plain English.' }
     };
-    var LEAD = { ar: 0, sec: 4 };
     var lastMod = null, lastName = null;
 
     function greeting() {
@@ -235,7 +167,6 @@
         lastName = first;
       }
       if (mod !== lastMod) {
-        if (lastMod !== null) { go(LEAD[mod]); restart(); }
         hero.setAttribute('data-mod', mod);
         lastMod = mod;
       }
@@ -270,7 +201,7 @@
     if (monthSel) { monthSel.addEventListener('change', soon); mo.observe(monthSel, { childList: true }); }
     update();
 
-    // ---- scroll parallax: photo drifts slower than the page, copy fades
+    // ---- on scroll the copy drifts down and fades
     if (!reduce) {
       var copy = hero.querySelector('.hs-copy');
       var ticking = false;
@@ -280,7 +211,6 @@
         requestAnimationFrame(function () {
           ticking = false;
           var y = Math.min(window.scrollY, 420);
-          media.style.transform = 'translateY(' + (y * 0.22).toFixed(1) + 'px)';
           copy.style.transform = 'translateY(' + (y * 0.1).toFixed(1) + 'px)';
           copy.style.opacity = String(Math.max(0, 1 - y / 320));
         });
