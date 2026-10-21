@@ -43,6 +43,6 @@ $process = Start-Process -FilePath $python `
     -WindowStyle Hidden `
     -PassThru
 
-Write-Host "NuTaste Sales Intel is now running on http://$($bindHost):$($listenPort)"
+Write-Host "NuTaste Sales Intelligence is now running on http://$($bindHost):$($listenPort)"
 Write-Host "Logs: $logDir"
 $process | Out-Null
