@@ -374,9 +374,12 @@
     g.appendChild(vt.root);
 
     var dc = card('Daily activity', 'visits per day');
+    var ym = S.periodFrom.split('-');
+    var monthDays = new Date(+ym[0], +ym[1], 0).getDate();   // 28-31 for the month shown
+    var monName = MON[+ym[1] - 1];
     var days = [];
-    for (var i = 1; i <= 31; i++) days.push(0);
-    person.d.visits.forEach(function (r) { if (r[V.DAY]) days[r[V.DAY] - 1]++; });
+    for (var i = 1; i <= monthDays; i++) days.push(0);
+    person.d.visits.forEach(function (r) { if (r[V.DAY] && r[V.DAY] <= monthDays) days[r[V.DAY] - 1]++; });
     var dmax = Math.max.apply(null, days) || 1;
     var SPARK_H = 110;   // px — percentage heights do not resolve in this flex row
     var spark = el('div', 'spark');
@@ -388,17 +391,21 @@
       spark.appendChild(b);
     });
     dc.body.appendChild(spark);
-    // day-of-month axis, one tick per bar (phones show odd days only, see CSS)
+    // date axis, one tick per bar: day number over the month ("1" / "Oct").
+    // Phones show odd days only, see CSS.
     var axis = el('div', 'spark-axis');
     axis.setAttribute('aria-hidden', 'true');
     days.forEach(function (v, i) {
-      axis.appendChild(el('span', 'spark-tick num' + ((i + 1) % 2 ? '' : ' even'), String(i + 1)));
+      var t = el('span', 'spark-tick' + ((i + 1) % 2 ? '' : ' even'));
+      t.appendChild(el('b', 'num', String(i + 1)));
+      t.appendChild(el('small', null, monName));
+      axis.appendChild(t);
     });
     dc.body.appendChild(axis);
     var legend = el('p', 'card-note');
     legend.style.marginTop = '10px';
     legend.textContent = 'Busiest day ' + dmax + ' visits · ' + s.activeDays +
-                         ' of 31 days had activity';
+                         ' of ' + monthDays + ' days had activity';
     dc.body.appendChild(legend);
     g.appendChild(dc.root);
     host.appendChild(g);
