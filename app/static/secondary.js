@@ -388,6 +388,13 @@
       spark.appendChild(b);
     });
     dc.body.appendChild(spark);
+    // day-of-month axis, one tick per bar (phones show odd days only, see CSS)
+    var axis = el('div', 'spark-axis');
+    axis.setAttribute('aria-hidden', 'true');
+    days.forEach(function (v, i) {
+      axis.appendChild(el('span', 'spark-tick num' + ((i + 1) % 2 ? '' : ' even'), String(i + 1)));
+    });
+    dc.body.appendChild(axis);
     var legend = el('p', 'card-note');
     legend.style.marginTop = '10px';
     legend.textContent = 'Busiest day ' + dmax + ' visits · ' + s.activeDays +

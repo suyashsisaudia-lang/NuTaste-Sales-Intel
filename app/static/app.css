@@ -444,6 +444,9 @@ h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 600; letter-spacing: -0
 }
 .spark-bar.spark-zero { background: var(--hairline-2); }
 .spark-bar:hover { background: var(--brand-deep); }
+/* same flex/gap as .spark so each day number sits under its bar */
+.spark-axis { display: flex; gap: 3px; margin-top: 5px; }
+.spark-tick { flex: 1 1 0; min-width: 0; text-align: center; font-size: 10.5px; color: var(--ink-3); line-height: 1; }
 
 /* ---------------------------------------------------------------- tabs */
 .tabbar { border-top: 1px solid var(--glass-line); }
@@ -1041,6 +1044,9 @@ table.rep tbody tr:not(.cust):not(.sub):not(.grand):hover td { background: var(-
   /* phones keep the stacked name/track + value layout (names already wrap here) */
   .bars-fit { display: flex; }
   .bars-fit .bar-row { grid-template-columns: 78px minmax(0,1fr); }
+  /* daily chart bars are ~8px wide here: label odd days only, keep the spacing */
+  .spark-tick.even { visibility: hidden; }
+  .spark-tick { overflow: visible; font-size: 9.5px; }
   /* customer bars have their own two-line layout; the areas above don't apply */
   .cust-bars .bar-row { grid-template-areas: none; }
   .cust-bars .bar-row > *, .cust-bars .bar-line > * { grid-area: auto; }
