@@ -363,7 +363,7 @@
       vt.body.appendChild(el('p', 'card-note', 'No visits recorded in this period.'));
     } else {
       var vmax = types[0][1];
-      var vb = el('div', 'bars');
+      var vb = el('div', 'bars bars-fit');
       types.forEach(function (t) {
         vb.appendChild(barRow(t[0], t[1], vmax, 'var(--accent)',
           t[0] + ' · ' + t[1] + ' visits · ' + pctOf(t[1], s.visits) + ' of activity',
@@ -406,7 +406,7 @@
       bc.body.appendChild(el('p', 'card-note', 'No secondary sales recorded' + (person.team ? '.' : ' for this person.')));
     } else {
       var bmax = buyers[0][1];
-      var bb = el('div', 'bars');
+      var bb = el('div', 'bars bars-fit');
       buyers.forEach(function (b) {
         bb.appendChild(barRow(b[0], b[1], bmax, 'var(--ok)',
           b[0] + ' · ' + money(b[1]) + ' · ' + pctOf(b[1], s.salesValue) + ' of sales'));
@@ -425,7 +425,7 @@
       ic.body.appendChild(el('p', 'card-note', 'No secondary sales recorded' + (person.team ? '.' : ' for this person.')));
     } else {
       var imax = items[0][1];
-      var ib = el('div', 'bars');
+      var ib = el('div', 'bars bars-fit');
       items.forEach(function (t) {
         var e = s.byItem[t[0]];
         ib.appendChild(barRow(t[0], t[1], imax, 'var(--ok)',
@@ -446,7 +446,7 @@
       pc.body.appendChild(el('p', 'card-note', 'No sales to break down.'));
     } else {
       var pmax = cats[0][1];
-      var pb = el('div', 'bars');
+      var pb = el('div', 'bars bars-fit');
       cats.forEach(function (p) {
         pb.appendChild(barRow(p[0], p[1], pmax, 'var(--sev-2)',
           p[0] + ' · ' + money(p[1]) + ' · ' + pctOf(p[1], s.salesValue)));

@@ -7,7 +7,7 @@
 
   var MODULES = {
     ar:  { module: 'ar-module',  tabbar: 'ar-tabbar',  picker: 'picker',
-           sub: 'Receivables Desk',    asof: true  },
+           sub: 'Receivables',         asof: true  },
     sec: { module: 'sec-module', tabbar: 'sec-tabbar', picker: 'sec-picker-wrap',
            sub: 'Secondary Sales',     asof: false }
   };

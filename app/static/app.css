@@ -597,6 +597,12 @@ main { max-width: var(--page-w); margin: 0 auto; padding: 24px 20px 64px; }
 .bar-fill.neg { background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,.38) 4px 8px); }
 .bar-val { font-size: 12px; font-weight: 600; white-space: nowrap; min-width: 74px; text-align: right; }
 .bar-row:hover .bar-track { background: var(--brand-soft); }
+/* Secondary Sales charts: the name column fits the longest name (up to 260px) and
+   longer names wrap rather than being cut off. Rows share columns via subgrid so
+   every bar in a chart starts at the same x. */
+.bars-fit { display: grid; grid-template-columns: fit-content(260px) minmax(0,1fr) auto; column-gap: 11px; row-gap: 9px; }
+.bars-fit .bar-row { grid-column: 1 / -1; grid-template-columns: subgrid; }
+.bars-fit .bar-name { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.3; }
 
 .cust-row .bar-name { width: 100%; text-align: left; }
 .cust-bars .bar-row { grid-template-columns: minmax(0,1fr); gap: 5px; }
@@ -1032,6 +1038,9 @@ table.rep tbody tr:not(.cust):not(.sub):not(.grand):hover td { background: var(-
   .bar-name { grid-area: name; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
   .bar-track { grid-area: track; }
   .bar-val { grid-area: val; text-align: right; min-width: 0; }
+  /* phones keep the stacked name/track + value layout (names already wrap here) */
+  .bars-fit { display: flex; }
+  .bars-fit .bar-row { grid-template-columns: 78px minmax(0,1fr); }
   /* customer bars have their own two-line layout; the areas above don't apply */
   .cust-bars .bar-row { grid-template-areas: none; }
   .cust-bars .bar-row > *, .cust-bars .bar-line > * { grid-area: auto; }

@@ -191,7 +191,7 @@
       var input = document.getElementById(mod === 'sec' ? 'sec-picker' : 'picker');
       var name = views && !views.hidden && input ? input.value.trim() : '';
 
-      modLabel.textContent = mod === 'sec' ? 'Secondary Sales' : 'Receivables Desk';
+      modLabel.textContent = mod === 'sec' ? 'Secondary Sales' : 'Receivables';
       if (mod === 'sec') {
         var sel = document.getElementById('sec-month');
         dateEl.textContent = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text.replace(/\s*\(.*\)$/, '') : '';
