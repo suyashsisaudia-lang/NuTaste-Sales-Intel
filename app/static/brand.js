@@ -184,13 +184,16 @@
     var pending = null;
     var soon = function () { if (!pending) pending = setTimeout(function () { pending = null; update(); }, 30); };
     var mo = new MutationObserver(soon);
-    ['ar-module', 'sec-module', 'views', 'sec-views'].forEach(function (id) {
+    ['ar-module', 'sec-module'].forEach(function (id) {
       var n = document.getElementById(id);
       if (n) mo.observe(n, { attributes: true, attributeFilter: ['hidden'] });
     });
+    // One observe() per node: a second call on the same node replaces the
+    // first, which once dropped the 'hidden' watch and left a cleared name
+    // on the banner.
     ['views', 'sec-views'].forEach(function (id) {
       var n = document.getElementById(id);
-      if (n) mo.observe(n, { childList: true, subtree: true });
+      if (n) mo.observe(n, { attributes: true, attributeFilter: ['hidden'], childList: true, subtree: true });
     });
     document.querySelectorAll('.tabbar-inner').forEach(function (n) {
       mo.observe(n, { attributes: true, subtree: true, attributeFilter: ['aria-selected'] });
