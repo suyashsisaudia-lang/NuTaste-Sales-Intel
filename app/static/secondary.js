@@ -2005,12 +2005,26 @@
     input.setAttribute('aria-expanded', 'false');
     cursor = -1;
   }
+  // The Excel link downloads the month on screen for whoever is picked;
+  // nobody or "All" means everyone this viewer can see.
+  function setDownload() {
+    var a = document.getElementById('sec-xlsx');
+    if (!a) return;
+    var one = current && !current.team;
+    var month = window.SEC_MONTH || S.periodFrom.slice(0, 7);
+    a.href = '/api/export/sec.xlsx?month=' + encodeURIComponent(month) +
+      (one ? '&person=' + encodeURIComponent(current.name) : '');
+    a.title = 'Download ' + periodLabel() + (one ? ' for ' + current.name : '') +
+      ' as Excel: sales, visits, demos, leads, travel and expenses';
+  }
+
   function select(r) {
     current = r;
     input.value = r.name;
     clearBtn.hidden = false;
     closeList();
     render();
+    setDownload();
     try { localStorage.setItem('nutaste-sec-person', r.name); } catch (e) { /* ignore */ }
   }
   function clearSelection() {
@@ -2019,6 +2033,7 @@
     clearBtn.hidden = true;
     document.getElementById('sec-views').hidden = true;
     document.getElementById('sec-empty').hidden = false;
+    setDownload();
     try { localStorage.removeItem('nutaste-sec-person'); } catch (e) { /* ignore */ }
     input.focus();
   }
@@ -2115,6 +2130,7 @@
 
   // ---------------------------------------------------------------- boot
   document.getElementById('sec-period').textContent = periodLabel();
+  setDownload();
   var savedView = null;
   try {
     savedView = sessionStorage.getItem(VIEW_STORE_KEY);

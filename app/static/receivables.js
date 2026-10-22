@@ -2588,12 +2588,23 @@
     cursor = -1;
   }
 
+  // The Excel link downloads whoever is picked; nobody or "All" means
+  // everyone this viewer can see (the server scopes it either way).
+  function setDownload() {
+    var a = document.getElementById('ar-xlsx');
+    if (!a) return;
+    var one = current && !current.team;
+    a.href = '/api/export/ar.xlsx' + (one ? '?person=' + encodeURIComponent(current.name) : '');
+    a.title = 'Download the full receivables report' + (one ? ' for ' + current.name : '') + ' as Excel';
+  }
+
   function select(r) {
     current = r;
     input.value = r.name;
     clearBtn.hidden = false;
     closeList();
     render();
+    setDownload();
     try { localStorage.setItem('nutaste-ar-sp', r.name); } catch (e) { /* storage may be unavailable */ }
   }
 
@@ -2603,6 +2614,7 @@
     clearBtn.hidden = true;
     document.getElementById('views').hidden = true;
     document.getElementById('empty').hidden = false;
+    setDownload();
     try { localStorage.removeItem('nutaste-ar-sp'); } catch (e) { /* ignore */ }
     input.focus();
   }

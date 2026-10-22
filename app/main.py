@@ -40,6 +40,7 @@ from . import ar_refresh
 from . import ask as ask_mod
 from . import ask_sec as ask_sec_mod
 from . import data_sync
+from . import export_xlsx
 from . import keep_awake
 from . import sec_refresh
 from . import users
@@ -724,6 +725,56 @@ def meta(request: Request):
         "sec": {"periodFrom": sec.get("periodFrom"), "periodTo": sec.get("periodTo"),
                 "people": len(sec.get("people", [])), **_meta().get("sec", {})},
     }
+
+
+# ------------------------------------------------------------- Excel downloads
+# Built from the viewer's scoped payload, so the file holds exactly what the
+# page could show them. ?person= is the name picked on screen; blank or "All"
+# means everyone in their view.
+XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _xlsx_response(body: bytes, filename: str) -> Response:
+    from urllib.parse import quote
+    return Response(body, media_type=XLSX_TYPE, headers={
+        "Content-Disposition": f"attachment; filename=\"{filename}\"; "
+                               f"filename*=UTF-8''{quote(filename)}",
+        "Cache-Control": "no-store",
+    })
+
+
+@app.get("/api/export/ar.xlsx")
+def export_ar(request: Request, person: str = ""):
+    viewer = _viewer(request)
+    if viewer is None:
+        return RedirectResponse("/login", status_code=303)
+    ar = _ar_for(viewer)
+    who = None if person in ("", "All") else person
+    try:
+        body = export_xlsx.build_ar(ar, who, viewer.name)
+    except KeyError:
+        return PlainTextResponse("That salesperson is not in your view.", status_code=404)
+    log.info("Excel download: receivables (%s) by %s", who or "All", viewer.email)
+    name = export_xlsx.safe_filename("NuTaste-Receivables", who or "All",
+                                     str(ar.get("reportDate", "")))
+    return _xlsx_response(body, name + ".xlsx")
+
+
+@app.get("/api/export/sec.xlsx")
+def export_sec(request: Request, month: str = "", person: str = ""):
+    viewer = _viewer(request)
+    if viewer is None:
+        return RedirectResponse("/login", status_code=303)
+    sec = _sec_for(viewer, month)
+    who = None if person in ("", "All") else person
+    try:
+        body = export_xlsx.build_sec(sec, who, viewer.name)
+    except KeyError:
+        return PlainTextResponse("That person is not in your view.", status_code=404)
+    log.info("Excel download: secondary sales %s (%s) by %s",
+             _sec_month_of(sec), who or "All", viewer.email)
+    name = export_xlsx.safe_filename("NuTaste-Secondary-Sales", who or "All", _sec_month_of(sec))
+    return _xlsx_response(body, name + ".xlsx")
 
 
 # ------------------------------------------------------------------- ask (AI)
