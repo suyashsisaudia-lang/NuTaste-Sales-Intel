@@ -56,7 +56,10 @@
 /* A soft light drifting across the banner, like studio lighting. */
 .hs-shade::after {
   content: ""; position: absolute; inset: 0;
-  background: radial-gradient(520px 260px at 15% 0%, rgba(62,196,111,.3), transparent 70%);
+  /* The glow's centre sits at least its visible radius (70% of 520px) in from
+     this layer's left edge, so it fades out before that edge: as the layer
+     drifts right, the edge no longer shows as a hard vertical seam. */
+  background: radial-gradient(520px 260px at max(15%, 370px) 0%, rgba(62,196,111,.3), transparent 70%);
   animation: light-drift 12s ease-in-out infinite alternate;
 }
 @keyframes light-drift { to { transform: translateX(38%); } }
@@ -204,6 +207,13 @@
 @media (max-width: 640px) {
   .hero-strip { height: 210px; border-radius: 18px; margin-bottom: 16px; }
   .hs-copy { max-width: 100%; padding-right: 20px; }
+  .hs-shade::after { background: radial-gradient(300px 200px at max(15%, 215px) 0%, rgba(62,196,111,.3), transparent 70%); }
+  /* The date already sits under the search box on phones; dropping it here
+     keeps the eyebrow to one line instead of leaving a "·" hanging. */
+  .hs-eyebrow #hs-date, .hs-eyebrow span[aria-hidden] { display: none; }
+  /* person on one line, the period beneath it, with no separator to strand */
+  .hs-ctx-sep { display: none; }
+  .hs-ctx-period { flex-basis: 100%; }
   .fan-card { width: 132px; }
   .range { padding: 4px 13px 28px; }
   .range-card { width: 170px; }

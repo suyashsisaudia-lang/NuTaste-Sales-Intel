@@ -2258,7 +2258,9 @@
         var x = el('tr');
         row.forEach(function (cell, i) {
           var isNum = i >= 2;
-          x.appendChild(el('td', isNum ? (String(cell).indexOf('−') === 0 ? 'n neg' : 'n') : null, cell));
+          var td = el('td', isNum ? (String(cell).indexOf('−') === 0 ? 'n neg' : 'n') : null, cell);
+          td.setAttribute('data-label', r.table[i] || '');   // phones show each row as a labelled card
+          x.appendChild(td);
         });
         tb.appendChild(x);
       });

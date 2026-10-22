@@ -184,7 +184,11 @@
     var tb = el('tbody');
     rows.forEach(function (r) {
       var x = el('tr');
-      r.forEach(function (cell, i) { x.appendChild(el('td', i >= numFrom ? 'n' : null, cell)); });
+      r.forEach(function (cell, i) {
+        var td = el('td', i >= numFrom ? 'n' : null, cell);
+        td.setAttribute('data-label', cols[i] || '');   // phones show each row as a labelled card
+        x.appendChild(td);
+      });
       tb.appendChild(x);
     });
     t.appendChild(tb); scroll.appendChild(t);
@@ -1489,6 +1493,7 @@
           cells.forEach(function (c, ci) {
             var td = el('td', ci > 0 ? 'n' : null);
             td.innerHTML = mdInline(c);
+            td.setAttribute('data-label', htr.children[ci] ? htr.children[ci].textContent : '');
             tr.appendChild(td);
           });
           tb.appendChild(tr);
