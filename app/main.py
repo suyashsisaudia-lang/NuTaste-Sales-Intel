@@ -1153,6 +1153,46 @@ def _sec_year_summary(viewer: users.Viewer, sec: dict, person: Optional[str]) ->
         return None
 
 
+# ------------------------------------------- secondary sales: compare people
+# The Compare tab's month-by-month trend. Everything else on that tab is
+# worked out in the browser from the month on screen; only the rest of the
+# year needs the other month files. Each file is scoped to the viewer, so a
+# name the viewer cannot see simply comes back empty.
+COMPARE_MAX = 3
+
+
+class CompareSecRequest(BaseModel):
+    people: List[str] = Field(min_length=1, max_length=COMPARE_MAX)
+    month: Optional[str] = Field(default=None, max_length=7)
+
+
+@app.post("/api/compare/sec")
+def api_compare_sec(request: Request, body: CompareSecRequest):
+    viewer = _viewer(request)
+    if viewer is None:
+        return JSONResponse({"ok": False, "error": "Not signed in"}, status_code=401)
+    shown = body.month if body.month and MONTH_RE.match(body.month) \
+        else _sec_month_of(_load(SEC_PATH))
+    if not MONTH_RE.match(shown):
+        return {"ok": False, "error": "No secondary sales data"}
+    months = [(m, _sec_for(viewer, m)) for m in _sec_months()
+              if m[:4] == shown[:4] and m <= shown]
+    if not months:
+        return {"ok": False, "error": "No months stored for this year"}
+    current = date.today().strftime("%Y-%m")
+    out: Dict[str, Any] = {}
+    for name in dict.fromkeys(body.people):          # de-duplicated, order kept
+        y = ask_sec_mod.build_year_summary(
+            months, name, current if any(m == current for m, _ in months) else None)
+        out[name] = None if y is None else {
+            "perMonth": y["perMonth"], "total": y["total"],
+            "categories": [[c[0], c[1]] for c in y["categories"][:10]],
+        }
+    return {"ok": True, "months": [m for m, _ in months],
+            "inProgress": current if any(m == current for m, _ in months) else None,
+            "people": out}
+
+
 # --------------------------------------------- ask (AI) — secondary, analyst
 # The live path for a typed question. Unlike /api/ask/sec above, the model is
 # given this person's real rows and real amounts and answers directly: it ranks,

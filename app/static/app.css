@@ -39,6 +39,12 @@
   --sev-4:        #96301f;
 
   --credit:       #6b7280;
+
+  /* Compare tab: one colour per person, kept while they stay picked. Blue,
+     orange, aqua: the three slots that stay apart for colour-blind readers. */
+  --cmp-1:        #2a78d6;
+  --cmp-2:        #eb6834;
+  --cmp-3:        #1baf7a;
   --shadow:       0 1px 2px rgba(14,21,16,.05), 0 4px 12px rgba(14,21,16,.05);
   --shadow-lg:    0 2px 4px rgba(14,21,16,.06), 0 12px 32px rgba(14,21,16,.10);
   --shadow-hover: 0 4px 10px rgba(14,21,16,.06), 0 18px 40px rgba(14,21,16,.10);
@@ -92,6 +98,9 @@
     --sev-4:      #8f3524;
 
     --credit:     #8b95a5;
+    --cmp-1:      #3987e5;
+    --cmp-2:      #d95926;
+    --cmp-3:      #199e70;
     --shadow:     0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
     --shadow-lg:  0 2px 4px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.45);
     --shadow-hover: 0 4px 10px rgba(0,0,0,.45), 0 18px 40px rgba(0,0,0,.45);
@@ -131,6 +140,9 @@
   --sev-4:      #8f3524;
 
   --credit:     #8b95a5;
+  --cmp-1:      #3987e5;
+  --cmp-2:      #d95926;
+  --cmp-3:      #199e70;
   --shadow:     0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
   --shadow-lg:  0 2px 4px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.45);
   --shadow-hover: 0 4px 10px rgba(0,0,0,.45), 0 18px 40px rgba(0,0,0,.45);
@@ -861,6 +873,83 @@ table.rep tbody tr:not(.cust):not(.sub):not(.grand):hover td { background: var(-
 .mini td.n, .mini th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .mini tbody tr:hover td { background: var(--surface-2); }
 
+/* ------------------------------------------------------------ compare */
+/* its name list must open over the report below, even mid-reveal */
+.cmp-pickcard { position: relative; z-index: 5; }
+.cmp-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.cmp-chosen { display: flex; flex-wrap: wrap; gap: 8px; }
+.cmp-chosen:not(:empty) { margin-bottom: 12px; }
+.cmp-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 5px 4px 11px; border: 1px solid var(--hairline-2); border-radius: 999px;
+  background: var(--surface-2); font-size: 13px; font-weight: 600; color: var(--ink);
+}
+.cmp-chip button {
+  border: 0; background: transparent; cursor: pointer; color: var(--ink-3);
+  line-height: 0; padding: 5px; border-radius: 999px;
+}
+.cmp-chip button:hover { color: var(--ink); background: var(--hairline); }
+.cmp-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.cmp-tools .team-more { margin: 0 0 0 auto; }
+.cmp-tools .team-more[hidden] { display: none; }
+.cmp-picker .picker-input:disabled { opacity: .6; cursor: not-allowed; }
+.cmp-hint { margin: 10px 0 0; }
+
+.cmp-people { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.cmp-person { border-top: 3px solid var(--c, var(--accent)); }
+.cmp-person-head { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--ink); }
+.cmp-person-name { min-width: 0; overflow-wrap: anywhere; }
+.cmp-person .kpi-label { margin-top: 6px; }
+
+.cmp-findings, .cmp-watch { margin: 0; padding-left: 20px; font-size: 13.5px; line-height: 1.6; color: var(--ink); }
+.cmp-findings li + li, .cmp-watch li + li { margin-top: 6px; }
+.cmp-watch li::marker { color: var(--sev-3); }
+.cmp-sub {
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-3); margin: 18px 0 9px;
+}
+.card-body > .cmp-sub:first-child { margin-top: 0; }
+.cmp-foot { margin: 10px 0 0; line-height: 1.5; }
+.cmp-findings + .cmp-sub { margin-top: 18px; }
+
+.cmp-score .cmp-group td {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--ink-3); background: var(--surface-2); padding-top: 9px;
+}
+.cmp-score th .cmp-swatch { margin-right: 6px; vertical-align: -1px; }
+.cmp-score td:first-child { color: var(--ink-2); }
+.cmp-score td.cmp-best { font-weight: 700; color: var(--ink); }
+.cmp-best-tag { margin-left: 6px; padding: 0 6px; font-family: var(--sans); font-size: 10px; vertical-align: 1px; }
+
+.cmp-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+.cmp-col-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+
+/* year trend: lines in a stretched SVG; points and labels are HTML so they
+   keep their shape at any width */
+.cmp-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); margin-bottom: 14px; }
+.cmp-leg { display: inline-flex; align-items: center; gap: 6px; }
+.cmp-leg-note { color: var(--ink-3); }
+.cmp-plot { position: relative; height: 220px; margin: 0 8px 0 64px; }
+.cmp-gl { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--hairline); }
+.cmp-gl:first-child { border-top-color: var(--hairline-2); }
+.cmp-gl-lbl {
+  position: absolute; right: 100%; top: -7px; padding-right: 8px;
+  font-size: 10.5px; line-height: 14px; color: var(--ink-3); white-space: nowrap;
+}
+.cmp-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.cmp-ln { stroke-width: 2; stroke-linecap: round; fill: none; }
+.cmp-ln-mtd { stroke-dasharray: 4 4; }
+.cmp-pt {
+  position: absolute; width: 9px; height: 9px; margin: 0 0 -4.5px -4.5px;
+  border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--surface);
+  transition: transform .15s;
+}
+.cmp-pt::after { content: ""; position: absolute; inset: -8px; border-radius: 50%; }  /* larger hit area */
+.cmp-pt:hover { transform: scale(1.4); }
+.cmp-pt-mtd { background: var(--surface); box-shadow: inset 0 0 0 2px var(--c), 0 0 0 2px var(--surface); }
+.cmp-xaxis { display: flex; margin: 8px 8px 14px 64px; }
+.cmp-xaxis span { flex: 1 1 0; min-width: 0; text-align: center; font-size: 11px; color: var(--ink-3); }
+
 /* ------------------------------------------------------ scroll reveal */
 /* motion.js tags freshly rendered blocks with .rv and adds .rv-in as each one
    scrolls into view, staggered through --rv-d. Nothing here applies unless the
@@ -1109,6 +1198,27 @@ table.rep tbody tr:not(.cust):not(.sub):not(.grand):hover td { background: var(-
   .mini td:first-child::before { display: none; }
   .mini tbody tr:hover td { background: transparent; }
   #answer-slot, #sec-answer-slot { scroll-margin-top: 110px; }
+
+  /* Compare: chart a little shorter, print button under the search */
+  .cmp-plot { height: 180px; margin-left: 52px; margin-right: 4px; }
+  .cmp-xaxis { margin-left: 52px; margin-right: 4px; }
+  .cmp-xaxis span { font-size: 10px; }
+  .cmp-tools .team-more { margin-left: 0; }
+  .cmp-findings, .cmp-watch { font-size: 13px; padding-left: 18px; }
+  .cmp-score tr.cmp-group { padding: 8px 12px; background: var(--surface-2); }
+  .cmp-score tr.cmp-group td { background: transparent; padding: 0; }
+}
+
+/* Compare: printing (or saving as PDF) gives just the report */
+@media print {
+  .chrome, .hero-strip, .range, .site-foot, .splash, .tip, .cmp-tools, .cmp-hint, .cmp-chip button,
+  #sec-empty { display: none !important; }
+  body { background: #fff; }
+  main { max-width: none; padding: 0; }
+  .card, .kpi { box-shadow: none !important; break-inside: avoid; }
+  .rv, .rv .bar-fill { opacity: 1 !important; transform: none !important; filter: none !important; }
+  .table-scroll { overflow: visible !important; max-height: none !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
 /* Full report: the table is ~1,600px wide, so phones and touch tablets (iPad)

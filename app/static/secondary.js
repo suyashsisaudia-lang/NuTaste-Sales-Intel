@@ -1966,13 +1966,874 @@
     renderSecAnswer(slot, q.label, runSecQuery(q.f, person), null, null, LOCAL_SRC);
   }
 
+  // ================================================================
+  // COMPARE — two or three people side by side for the month on screen,
+  // plus their year so far from /api/compare/sec. Every figure is worked out
+  // from the same rows as the Overview tab; the written findings only restate
+  // those figures. Nothing is estimated and no measure is weighted.
+  // ================================================================
+  var CMP_MAX = 3;
+  var CMP_STORE_KEY = 'nutaste-sec-compare';
+  var cmpPicked = [];        // { r: roster entry, slot: 1-3 }, in the order picked
+  var cmpYearCache = {};     // "month|name|name" -> /api/compare/sec reply
+  var cmpSeq = 0;            // a slow year reply is dropped once the picks change
+  var cmpUi = null;          // the picker card, built on first visit to the tab
+  var cmpCursor = -1, cmpFiltered = [];
+
+  function intFmt(n) { return Math.round(n || 0).toLocaleString('en-IN'); }
+  function pctFmt(n) { return (n * 100).toFixed(1) + '%'; }
+  function pct2Fmt(n) { return (n * 100).toFixed(2) + '%'; }   // expense ratios sit close together
+  function kmFmt(n) { return intFmt(n) + ' km'; }
+  function plural(n, one, many) { return intFmt(n) + ' ' + (n === 1 ? one : (many || one + 's')); }
+  function ratio(a, b) { return b ? a / b : null; }
+  function monthName(mk) { var p = mk.split('-'); return MON[+p[1] - 1] + ' ' + p[0]; }
+  function monShort(mk) { return MON[+mk.split('-')[1] - 1]; }
+  // Each person keeps their colour while picked; it carries identity only,
+  // so every figure beside it is still named in text.
+  function swatch(slot) {
+    var d = el('span', 'cmp-swatch');
+    d.style.background = 'var(--cmp-' + slot + ')';
+    d.setAttribute('aria-hidden', 'true');
+    return d;
+  }
+  function strongName(c) { return '<strong>' + esc(c.name) + '</strong>'; }
+  function joinList(parts) {
+    return parts.length <= 1 ? (parts[0] || '')
+      : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+  }
+
+  // ---- one person's month, in the shape the scorecard reads
+  function cmpStats(p) {
+    var d = p.r.d, s = summarise(d);
+    var ym = S.periodFrom.split('-');
+    var days = new Date(+ym[0], +ym[1], 0).getDate();
+    var weeks = [];
+    for (var w = 0; w * 7 < days; w++) {
+      weeks.push({ from: w * 7 + 1, to: Math.min(days, w * 7 + 7), value: 0, visits: 0 });
+    }
+    function weekOf(day) { return weeks[Math.min(weeks.length - 1, Math.floor((day - 1) / 7))]; }
+    var billed = {}, billDays = {};
+    d.sales.forEach(function (x) {
+      billed[x[SL.BUYER]] = 1;
+      if (x[SL.DAY]) { billDays[x[SL.DAY]] = 1; weekOf(x[SL.DAY]).value += x[SL.VAL]; }
+    });
+    d.visits.forEach(function (x) { if (x[V.DAY]) weekOf(x[V.DAY]).visits++; });
+    var top = topEntries(s.byBuyer, 5);
+    return {
+      name: p.r.name, slot: p.slot, d: d, s: s, weeks: weeks, billed: billed,
+      outletsBilled: Object.keys(billed).length,
+      billDays: Object.keys(billDays).length,
+      // No "visited outlets that bought": the visit log and the billing data
+      // name outlets differently (25 of ~3,000 names match), so it would read
+      // as near zero for almost everyone.
+      mins: d.visits.reduce(function (a, x) { return a + (x[V.MINS] || 0); }, 0),
+      topBuyer: top[0] || null,
+      top5: top.reduce(function (a, t) { return a + t[1]; }, 0)
+    };
+  }
+
+  // ---- scorecard rows. better: 'high' or 'low' marks a best figure; null
+  // rows are context only (more kilometres is neither good nor bad).
+  var CMP_MONTH_METRICS = [
+    { group: 'Sales' },
+    { label: 'Secondary sales', get: function (c) { return c.s.salesValue; }, fmt: money, better: 'high' },
+    { label: 'Units sold', get: function (c) { return c.s.salesQty; }, fmt: intFmt, better: 'high' },
+    { label: 'Outlets billed', get: function (c) { return c.outletsBilled; }, fmt: intFmt, better: 'high' },
+    { label: 'Days with sales', get: function (c) { return c.billDays; }, fmt: intFmt, better: 'high' },
+    { label: 'Average sale per outlet', get: function (c) { return ratio(c.s.salesValue, c.outletsBilled); },
+      fmt: money, better: 'high' },
+    { label: 'Top customer’s share of sales', fmt: pctFmt, better: 'low',
+      get: function (c) { return c.topBuyer && c.s.salesValue > 0 ? c.topBuyer[1] / c.s.salesValue : null; } },
+    { group: 'Field activity' },
+    { label: 'Visits', get: function (c) { return c.s.visits; }, fmt: intFmt, better: 'high' },
+    { label: 'Active days', get: function (c) { return c.s.activeDays; }, fmt: intFmt, better: 'high' },
+    { label: 'Visits per active day', get: function (c) { return ratio(c.s.visits, c.s.activeDays); },
+      fmt: function (n) { return n.toFixed(1); }, better: 'high' },
+    { label: 'Outlets visited', get: function (c) { return c.s.outletCount; }, fmt: intFmt, better: 'high' },
+    { label: 'Sales per visit', get: function (c) { return ratio(c.s.salesValue, c.s.visits); },
+      fmt: money, better: 'high' },
+    { label: 'Average visit length', get: function (c) { return c.mins ? c.mins / c.s.visits : null; },
+      fmt: function (n) { return Math.round(n) + ' min'; }, better: null },
+    { group: 'Demos and leads' },
+    { label: 'Demos', get: function (c) { return c.s.demos; }, fmt: intFmt, better: 'high' },
+    { label: 'Demos converted', get: function (c) { return c.s.demosConv; }, fmt: intFmt, better: 'high' },
+    { label: 'Demo conversion rate', get: function (c) { return ratio(c.s.demosConv, c.s.demos); },
+      fmt: pctFmt, better: 'high' },
+    { label: 'Leads', get: function (c) { return c.s.leads; }, fmt: intFmt, better: 'high' },
+    { label: 'Lead pipeline value', get: function (c) { return c.s.leadValue; }, fmt: money, better: 'high' },
+    { group: 'Travel and cost' },
+    { label: 'Distance travelled', get: function (c) { return c.s.km; }, fmt: kmFmt, better: null },
+    { label: 'Expenses claimed', get: function (c) { return c.s.expense; }, fmt: money, better: null },
+    { label: 'Cost per visit', fmt: money, better: 'low',
+      get: function (c) { return c.s.expense && c.s.visits ? c.s.expense / c.s.visits : null; } },
+    { label: 'Expenses as a share of sales', fmt: pct2Fmt, better: 'low',
+      get: function (c) { return c.s.expense && c.s.salesValue > 0 ? c.s.expense / c.s.salesValue : null; } }
+  ];
+
+  // Year-to-date rows read c.t, the server's exact year totals, and c.m, the
+  // months on file (null where the person is not on that month's data).
+  function yrMonths(c) { return c.m.filter(Boolean); }
+  var CMP_YEAR_METRICS = [
+    { group: 'Sales' },
+    { label: 'Secondary sales', get: function (c) { return c.t.sales_rs; }, fmt: money, better: 'high' },
+    { label: 'Average per month on file', fmt: money, better: 'high',
+      get: function (c) { return ratio(c.t.sales_rs, yrMonths(c).length); } },
+    { label: 'Best month', fmt: money, better: 'high', note: function (c) {
+        var b = null;
+        yrMonths(c).forEach(function (m) { if (!b || m.sales_rs > b.sales_rs) b = m; });
+        return b ? monShort(b.month) : '';
+      },
+      get: function (c) { return Math.max.apply(null, yrMonths(c).map(function (m) { return m.sales_rs; })); } },
+    { label: 'Months with sales', fmt: intFmt, better: 'high',
+      get: function (c) { return yrMonths(c).filter(function (m) { return m.sales_rs > 0; }).length; } },
+    { label: 'Units sold', get: function (c) { return c.t.qty; }, fmt: intFmt, better: 'high' },
+    { label: 'Different outlets billed', get: function (c) { return c.t.outlets_bought; }, fmt: intFmt, better: 'high' },
+    { group: 'Activity' },
+    { label: 'Visits', get: function (c) { return c.t.visits; }, fmt: intFmt, better: 'high' },
+    { label: 'Sales per visit', get: function (c) { return ratio(c.t.sales_rs, c.t.visits); }, fmt: money, better: 'high' },
+    { label: 'Demos', get: function (c) { return c.t.demos; }, fmt: intFmt, better: 'high' },
+    { label: 'Demo conversion rate', get: function (c) { return ratio(c.t.demos_converted, c.t.demos); },
+      fmt: pctFmt, better: 'high' },
+    { label: 'Leads', get: function (c) { return c.t.leads; }, fmt: intFmt, better: 'high' },
+    { group: 'Cost' },
+    { label: 'Distance travelled', get: function (c) { return c.t.km; }, fmt: kmFmt, better: null },
+    { label: 'Expenses claimed', get: function (c) { return c.t.expense_rs; }, fmt: money, better: null },
+    { label: 'Expenses as a share of sales', fmt: pct2Fmt, better: 'low',
+      get: function (c) { return c.t.expense_rs && c.t.sales_rs > 0 ? c.t.expense_rs / c.t.sales_rs : null; } }
+  ];
+
+  // Measures down the side, people across. The best figure in a row is marked
+  // "Best" in words as well as weight, so it never rests on colour; a row
+  // where everyone is level, or fewer than two have a figure, marks no one.
+  function scorecard(metrics, cols) {
+    var led = cols.map(function () { return 0; }), judged = 0;
+    var scroll = el('div', 'table-scroll');
+    var t = el('table', 'mini cmp-score');
+    var thead = el('thead'), hr = el('tr');
+    hr.appendChild(el('th', null, 'Measure'));
+    cols.forEach(function (c) {
+      var th = el('th', 'n');
+      th.appendChild(swatch(c.slot));
+      th.appendChild(document.createTextNode(c.name));
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr); t.appendChild(thead);
+    var tb = el('tbody');
+    metrics.forEach(function (m) {
+      var tr = el('tr');
+      if (m.group) {
+        tr.className = 'cmp-group';
+        var g = el('td', null, m.group);
+        g.colSpan = cols.length + 1;
+        tr.appendChild(g); tb.appendChild(tr);
+        return;
+      }
+      var vals = cols.map(function (c) {
+        var v = m.get(c);
+        return (v == null || !isFinite(v)) ? null : v;
+      });
+      var have = vals.filter(function (v) { return v != null; });
+      // Judged on the figure as shown, so 0.675% and 0.678% (both "0.68%")
+      // count as level rather than one quietly beating the other.
+      var best = null;
+      if (m.better && have.length >= 2) {
+        best = m.fmt(m.better === 'low' ? Math.min.apply(null, have) : Math.max.apply(null, have));
+        if (have.every(function (v) { return m.fmt(v) === best; })) best = null;
+        else judged++;
+      }
+      tr.appendChild(el('td', null, m.label));
+      vals.forEach(function (v, i) {
+        var td = el('td', 'n', v == null ? '—' : m.fmt(v) + (m.note ? ' · ' + m.note(cols[i]) : ''));
+        td.setAttribute('data-label', cols[i].name);   // phones show each row as a labelled card
+        if (best != null && v != null && m.fmt(v) === best) {
+          td.classList.add('cmp-best');
+          td.appendChild(el('span', 'chip ok cmp-best-tag', 'Best'));
+          led[i]++;
+        }
+        tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb); scroll.appendChild(t);
+    return { node: scroll, led: led, judged: judged };
+  }
+
+  // ---- what the month's figures say, in sentences. Returns HTML strings;
+  // every name goes through esc().
+  function monthFindings(cs, score) {
+    var out = [], watch = [];
+    var total = cs.reduce(function (a, c) { return a + c.s.salesValue; }, 0);
+    var bySales = cs.slice().sort(function (a, b) { return b.s.salesValue - a.s.salesValue; });
+    var lead = bySales[0];
+
+    if (lead.s.salesValue <= 0) {
+      out.push('None of the ' + cs.length + ' has secondary sales recorded in ' + periodLabel() + '.');
+    } else {
+      out.push(strongName(lead) + ' leads on secondary sales with ' + money(lead.s.salesValue) +
+        ', ' + pctOf(lead.s.salesValue, total) + ' of the ' + compact(total) + ' the ' + cs.length +
+        ' sold between them. ' + joinList(bySales.slice(1).map(function (c) {
+          return strongName(c) + (c.s.salesValue > 0
+            ? ' follows at ' + money(c.s.salesValue) + ' (' + compact(lead.s.salesValue - c.s.salesValue) +
+              ' behind; the leader sold ' + Math.round((lead.s.salesValue / c.s.salesValue - 1) * 100) + '% more)'
+            : ' has no secondary sales recorded');
+        })) + '.');
+    }
+
+    if (score.judged) {
+      var ranked = cs.map(function (c, i) { return { c: c, n: score.led[i] }; })
+        .sort(function (a, b) { return b.n - a.n; });
+      out.push('Of the ' + score.judged + ' scorecard measures with a clear best, ' +
+        joinList(ranked.map(function (x) { return strongName(x.c) + ' is best on ' + x.n; })) +
+        ' (a tie counts for each).');
+    }
+
+    // the best of the group on one measure, with everyone's figure for context
+    function bestOn(get, sentence, fmt) {
+      var rows = cs.map(function (c) { return { c: c, v: get(c) }; })
+        .filter(function (x) { return x.v != null && isFinite(x.v); });
+      if (rows.length < 2) return;
+      rows.sort(function (a, b) { return b.v - a.v; });
+      if (rows[0].v === rows[rows.length - 1].v) return;
+      out.push(sentence(rows[0].c, rows[0].v) + ' ' + joinList(rows.slice(1).map(function (x) {
+        return esc(x.c.name) + ' ' + fmt(x.v);
+      })) + ' for comparison.');
+    }
+    bestOn(function (c) { return c.s.visits && c.s.salesValue > 0 ? c.s.salesValue / c.s.visits : null; },
+      function (c, v) { return strongName(c) + ' gets the most from each visit: ' + money(v) + ' of sales per visit;'; },
+      money);
+    bestOn(function (c) { return c.outletsBilled || null; },
+      function (c, v) {
+        return strongName(c) + ' has the widest reach, billing ' + plural(v, 'outlet') +
+          ' at ' + money(c.s.salesValue / v) + ' each on average;';
+      }, function (v) { return plural(v, 'outlet'); });
+    bestOn(function (c) { return c.s.activeDays ? c.s.visits / c.s.activeDays : null; },
+      function (c, v) {
+        return strongName(c) + ' covers the most ground: ' + plural(c.s.visits, 'visit') + ' over ' +
+          plural(c.s.activeDays, 'active day') + ' (' + v.toFixed(1) + ' a day);';
+      }, function (v) { return v.toFixed(1) + ' a day'; });
+    if (cs.some(function (c) { return c.s.demos; })) {
+      out.push('Demos: ' + joinList(cs.map(function (c) {
+        return esc(c.name) + ' ' + (c.s.demos
+          ? c.s.demosConv + ' of ' + c.s.demos + ' converted (' + pctFmt(c.s.demosConv / c.s.demos) + ')'
+          : 'no demos');
+      })) + '.');
+    }
+    // Lower is better here, so flip the sign to reuse bestOn's ordering.
+    bestOn(function (c) { return c.s.expense && c.s.salesValue > 0 ? -c.s.expense / c.s.salesValue : null; },
+      function (c, v) {
+        return strongName(c) + ' runs leanest: expenses were ' + pct2Fmt(-v) + ' of sales;';
+      }, function (v) { return pct2Fmt(-v); });
+
+    cs.forEach(function (c) {
+      var s = c.s;
+      if (c.topBuyer && s.salesValue > 0 && c.topBuyer[1] / s.salesValue > 0.4) {
+        watch.push(strongName(c) + ': one customer, ' + esc(c.topBuyer[0]) + ', made up ' +
+          pctOf(c.topBuyer[1], s.salesValue) + ' of sales. Losing it would take a large share of the month.');
+      }
+      if (s.visits >= 5 && s.salesValue <= 0) {
+        watch.push(strongName(c) + ' logged ' + plural(s.visits, 'visit') + ' but no secondary sales.');
+      }
+      if (s.salesValue > 0 && !s.visits) {
+        watch.push(strongName(c) + ' has ' + money(s.salesValue) +
+          ' of sales but no visits logged. Worth checking that visits are being recorded.');
+      }
+      if (s.expense > 0 && s.salesValue <= 0) {
+        watch.push(strongName(c) + ' claimed ' + money(s.expense) + ' of expenses with no secondary sales.');
+      }
+    });
+    var shared = 0, seen = {};
+    cs.forEach(function (c) {
+      Object.keys(c.billed).forEach(function (k) { seen[k] = (seen[k] || 0) + 1; });
+    });
+    Object.keys(seen).forEach(function (k) { if (seen[k] > 1) shared++; });
+    if (shared) {
+      watch.push(plural(shared, 'outlet') + ' bought from more than one of them this month. ' +
+        'Usually a shared territory; check that the sales are not counted twice.');
+    }
+    return { out: out, watch: watch };
+  }
+
+  // ---- year so far, in sentences
+  function yearFindings(rows, months, inProgress) {
+    var out = [];
+    var withData = rows.filter(function (c) { return c.t; });
+    if (!withData.length) return out;
+    var bySales = withData.slice().sort(function (a, b) { return b.t.sales_rs - a.t.sales_rs; });
+    var span = monShort(months[0]) + '–' + monthName(months[months.length - 1]);
+    out.push('Year to date (' + span + '), ' + strongName(bySales[0]) + ' leads with ' +
+      money(bySales[0].t.sales_rs) + (bySales.length > 1 ? ', then ' + joinList(bySales.slice(1).map(function (c) {
+        return strongName(c) + ' ' + money(c.t.sales_rs);
+      })) : '') + '.');
+
+    // who had the highest sales, month by month
+    var tops = rows.map(function () { return 0; }), contested = 0;
+    months.forEach(function (mk, i) {
+      var best = -1, who = -1;
+      rows.forEach(function (c, j) {
+        var m = c.m[i];
+        if (m && m.sales_rs > best) { best = m.sales_rs; who = j; }
+      });
+      if (who >= 0 && best > 0) { tops[who]++; contested++; }
+    });
+    if (contested && rows.length > 1) {
+      out.push('Highest sales of the group, month by month: ' + joinList(rows.map(function (c, j) {
+        return strongName(c) + ' in ' + tops[j] + ' of ' + contested + ' months';
+      })) + '.');
+    }
+
+    // the last two finished months, so a month still in progress never reads as a fall
+    var done = months.filter(function (mk) { return mk !== inProgress; });
+    if (done.length >= 2) {
+      var a = done.length - 2, b = done.length - 1;
+      var ia = months.indexOf(done[a]), ib = months.indexOf(done[b]);
+      out.push(monShort(done[b]) + ' against ' + monShort(done[a]) + ': ' + joinList(rows.map(function (c) {
+        var x = c.m[ia], y = c.m[ib];
+        if (!y) return strongName(c) + ' not on ' + monShort(done[b]) + '’s data';
+        if (!(y.sales_rs > 0) && !(x && x.sales_rs > 0)) return strongName(c) + ' no sales in either month';
+        if (!x || !(x.sales_rs > 0)) return strongName(c) + ' ' + compact(y.sales_rs) + ' (no sales in ' + monShort(done[a]) + ')';
+        var ch = (y.sales_rs / x.sales_rs - 1) * 100;
+        return strongName(c) + ' ' + (ch >= 0 ? '+' : '−') + Math.abs(Math.round(ch)) + '% (' +
+          compact(x.sales_rs) + ' → ' + compact(y.sales_rs) + ')';
+      })) + '.');
+    }
+
+    rows.forEach(function (c) {
+      var gone = months.filter(function (mk, i) { return !c.m[i]; });
+      if (gone.length && gone.length < months.length) {
+        out.push(strongName(c) + ' is not on the data for ' + gone.map(monShort).join(', ') +
+          ', so those months count as nothing recorded rather than as a fall.');
+      }
+    });
+    return out;
+  }
+
+  function findingsList(cls, items) {
+    var ul = el('ul', cls);
+    items.forEach(function (h) { var li = el('li'); li.innerHTML = h; ul.appendChild(li); });
+    return ul;
+  }
+
+  // ---- monthly sales lines. The lines sit in an SVG stretched to the box;
+  // points, gridline labels and month names are HTML, so they keep their
+  // shape at any width. The step into a month still in progress is dashed
+  // and its point hollow.
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  function niceStep(x) {
+    if (!(x > 0)) return 1;
+    var p = Math.pow(10, Math.floor(Math.log(x) / Math.LN10)), n = x / p;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+  }
+  function trendChart(rows, months, inProgress) {
+    var wrap = el('div', 'cmp-trend');
+    var leg = el('div', 'cmp-legend');
+    rows.forEach(function (c) {
+      var i = el('span', 'cmp-leg');
+      i.appendChild(swatch(c.slot));
+      i.appendChild(document.createTextNode(c.name));
+      leg.appendChild(i);
+    });
+    if (inProgress) leg.appendChild(el('span', 'cmp-leg cmp-leg-note', 'Hollow point: ' + monShort(inProgress) + ' to date'));
+    wrap.appendChild(leg);
+
+    var vals = [0];
+    rows.forEach(function (c) { c.m.forEach(function (m) { if (m) vals.push(m.sales_rs); }); });
+    var step = niceStep(Math.max.apply(null, vals) / 4);
+    var top = step * 4;
+    var n = months.length;
+    function x(i) { return (i + 0.5) / n * 100; }
+    function y(v) { return Math.max(0, Math.min(100, v / top * 100)); }
+
+    var plot = el('div', 'cmp-plot');
+    for (var g = 0; g <= 4; g++) {
+      var gl = el('div', 'cmp-gl');
+      gl.style.bottom = (g * 25) + '%';
+      gl.appendChild(el('span', 'cmp-gl-lbl num', g ? compact(step * g).replace('.00 ', ' ') : '₹0'));
+      plot.appendChild(gl);
+    }
+    var svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('class', 'cmp-lines');
+    svg.setAttribute('aria-hidden', 'true');
+    rows.forEach(function (c) {
+      for (var i = 1; i < n; i++) {
+        var a = c.m[i - 1], b = c.m[i];
+        if (!a || !b) continue;              // not on that month's data: leave a gap
+        var ln = document.createElementNS(SVG_NS, 'line');
+        ln.setAttribute('x1', x(i - 1)); ln.setAttribute('y1', 100 - y(a.sales_rs));
+        ln.setAttribute('x2', x(i));     ln.setAttribute('y2', 100 - y(b.sales_rs));
+        ln.setAttribute('vector-effect', 'non-scaling-stroke');
+        ln.setAttribute('class', 'cmp-ln' + (months[i] === inProgress ? ' cmp-ln-mtd' : ''));
+        ln.style.stroke = 'var(--cmp-' + c.slot + ')';
+        svg.appendChild(ln);
+      }
+    });
+    plot.appendChild(svg);
+    rows.forEach(function (c) {
+      c.m.forEach(function (m, i) {
+        if (!m) return;
+        var mtd = months[i] === inProgress;
+        var pt = el('span', 'cmp-pt' + (mtd ? ' cmp-pt-mtd' : ''));
+        pt.style.left = x(i) + '%';
+        pt.style.bottom = y(m.sales_rs) + '%';
+        pt.style.setProperty('--c', 'var(--cmp-' + c.slot + ')');
+        bindTip(pt, c.name + ' · ' + monthName(months[i]) + (mtd ? ' to date' : '') + ' · ' +
+          money(m.sales_rs) + ' · ' + plural(m.visits, 'visit'));
+        plot.appendChild(pt);
+      });
+    });
+    wrap.appendChild(plot);
+    var xa = el('div', 'cmp-xaxis');
+    xa.setAttribute('aria-hidden', 'true');
+    months.forEach(function (mk) { xa.appendChild(el('span', null, monShort(mk))); });
+    wrap.appendChild(xa);
+    return wrap;
+  }
+
+  function loadYear(names) {
+    var month = window.SEC_MONTH || S.periodFrom.slice(0, 7);
+    var key = month + '|' + names.join('|');
+    if (cmpYearCache[key]) return Promise.resolve(cmpYearCache[key]);
+    return fetch('/api/compare/sec', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ people: names, month: month })
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; })
+      .then(function (j) {
+        if (!(j && j.ok)) return null;
+        cmpYearCache[key] = j;
+        return j;
+      });
+  }
+
+  function yearCard(cs) {
+    var c = card('Year so far', 'loading…');
+    var wait = el('div', 'thinking');
+    wait.innerHTML = '<span class="thinking-dots"><i></i><i></i><i></i></span>Loading each month of the year…';
+    c.body.appendChild(wait);
+    var seq = cmpSeq;
+    loadYear(cs.map(function (x) { return x.name; })).then(function (j) {
+      if (seq !== cmpSeq) return;            // the picks changed while this was loading
+      c.body.textContent = '';
+      var note = c.root.querySelector('.card-note');
+      if (!j || !j.months || !j.months.length) {
+        note.textContent = '';
+        c.body.appendChild(el('p', 'card-note',
+          'The rest of the year could not be loaded just now. The month above is unaffected.'));
+        return;
+      }
+      var months = j.months;
+      note.textContent = monShort(months[0]) + '–' + monthName(months[months.length - 1]) +
+        (j.inProgress ? ' · ' + monShort(j.inProgress) + ' is month to date' : '');
+      var rows = cs.map(function (x) {
+        var y = j.people[x.name], byMonth = {};
+        (y ? y.perMonth : []).forEach(function (m) { if (!m.absent) byMonth[m.month] = m; });
+        return { name: x.name, slot: x.slot, t: y ? y.total : null,
+                 m: months.map(function (mk) { return byMonth[mk] || null; }) };
+      });
+
+      c.body.appendChild(findingsList('cmp-findings', yearFindings(rows, months, j.inProgress)));
+      c.body.appendChild(el('h4', 'cmp-sub', 'Secondary sales by month'));
+      c.body.appendChild(trendChart(rows, months, j.inProgress));
+      c.body.appendChild(table(['Month'].concat(rows.map(function (r) { return r.name; })),
+        months.map(function (mk, i) {
+          return [monthName(mk) + (mk === j.inProgress ? ' (to date)' : '')].concat(rows.map(function (r) {
+            return r.m[i] ? money(r.m[i].sales_rs) : '—';
+          }));
+        }), 1));
+      var known = rows.filter(function (r) { return r.t; });
+      if (known.length >= 2) {
+        c.body.appendChild(el('h4', 'cmp-sub', 'Year-to-date scorecard'));
+        c.body.appendChild(scorecard(CMP_YEAR_METRICS, known).node);
+      }
+      c.body.appendChild(el('p', 'card-note cmp-foot',
+        '— means not on that month’s data, or no figure to work from. ' +
+        'The average counts only the months a person is on the data' +
+        (j.inProgress ? ', including ' + monShort(j.inProgress) + ' to date.' : '.')));
+    });
+    return c.root;
+  }
+
+  // ---- the report under the picker
+  function renderCmpReport(host, cs) {
+    var names = cs.map(function (c) { return c.name; });
+    var score = scorecard(CMP_MONTH_METRICS, cs);
+    var total = cs.reduce(function (a, c) { return a + c.s.salesValue; }, 0);
+
+    // one tile per person
+    var tiles = el('div', 'cmp-people');
+    cs.forEach(function (c, i) {
+      var k = el('div', 'kpi cmp-person');
+      k.style.setProperty('--c', 'var(--cmp-' + c.slot + ')');
+      var head = el('div', 'cmp-person-head');
+      head.appendChild(swatch(c.slot));
+      head.appendChild(el('span', 'cmp-person-name', c.name));
+      k.appendChild(head);
+      var info = S.roster[c.name] || {};
+      var role = [info.designation, info.region].filter(Boolean).join(' · ');
+      if (role) k.appendChild(el('div', 'kpi-sub', role));
+      k.appendChild(el('div', 'kpi-label', 'Secondary sales'));
+      k.appendChild(el('div', 'kpi-value num', money(c.s.salesValue)));
+      k.appendChild(el('div', 'kpi-sub', plural(c.s.visits, 'visit') + ' · ' +
+        plural(c.outletsBilled, 'outlet') + ' billed · ' + pctOf(c.s.salesValue, total) + ' of the group'));
+      if (score.judged) {
+        var led = el('div', 'kpi-sub');
+        led.appendChild(el('span', 'chip ' + (score.led[i] === Math.max.apply(null, score.led) ? 'ok' : 'neutral'),
+          'Best on ' + score.led[i] + ' of ' + score.judged + ' measures'));
+        k.appendChild(led);
+      }
+      tiles.appendChild(k);
+    });
+    host.appendChild(tiles);
+
+    // key findings
+    var f = monthFindings(cs, score);
+    var fc = card('Key findings', periodLabel());
+    fc.body.appendChild(findingsList('cmp-findings', f.out));
+    if (f.watch.length) {
+      fc.body.appendChild(el('h4', 'cmp-sub', 'Watch points'));
+      fc.body.appendChild(findingsList('cmp-watch', f.watch));
+    }
+    if (window.SEC_MONTH === new Date().toISOString().slice(0, 7)) {
+      fc.body.appendChild(el('p', 'card-note cmp-foot', monthName(window.SEC_MONTH) +
+        ' is still in progress, so these are month-to-date figures.'));
+    }
+    host.appendChild(fc.root);
+
+    // scorecard
+    var sc = card('Scorecard', periodLabel());
+    sc.body.appendChild(score.node);
+    sc.body.appendChild(el('p', 'card-note cmp-foot',
+      '“Best” marks the strongest figure in each row; for top customer’s share, cost per visit and ' +
+      'expenses as a share of sales, lower is better. ' +
+      '— means there is nothing to work it out from, such as no expenses claimed.'));
+    host.appendChild(sc.root);
+
+    // at a glance: the same people on three measures
+    var gc = card('At a glance', compact(total) + ' sold between them');
+    function glance(title, get, fmt) {
+      gc.body.appendChild(el('h4', 'cmp-sub', title));
+      var scale = Math.max.apply(null, cs.map(function (c) { return Math.abs(get(c)); })) || 1;
+      var bars = el('div', 'bars bars-fit');
+      cs.forEach(function (c) {
+        bars.appendChild(barRow(c.name, get(c), scale, 'var(--cmp-' + c.slot + ')',
+          c.name + ' · ' + title + ' · ' + fmt(get(c)), fmt));
+      });
+      gc.body.appendChild(bars);
+    }
+    glance('Secondary sales', function (c) { return c.s.salesValue; }, money);
+    glance('Visits', function (c) { return c.s.visits; }, intFmt);
+    glance('Outlets billed', function (c) { return c.outletsBilled; }, intFmt);
+    host.appendChild(gc.root);
+
+    // week by week
+    var mon = MON[+S.periodFrom.split('-')[1] - 1];
+    var wc = card('Week by week', 'secondary sales and visits');
+    wc.body.appendChild(table(['Week'].concat(names), cs[0].weeks.map(function (w, i) {
+      return [w.from + '–' + w.to + ' ' + mon].concat(cs.map(function (c) {
+        return money(c.weeks[i].value) + ' · ' + plural(c.weeks[i].visits, 'visit');
+      }));
+    }), 1));
+    wc.body.appendChild(el('p', 'card-note cmp-foot', 'Strongest week for sales: ' + joinList(cs.map(function (c) {
+      var b = c.weeks.reduce(function (a, w) { return w.value > a.value ? w : a; }, c.weeks[0]);
+      return c.name + ' ' + (b.value > 0 ? b.from + '–' + b.to + ' ' + mon : 'none');
+    })) + '.'));
+    host.appendChild(wc.root);
+
+    // product category mix, each as a share of that person's own sales
+    var catTotal = {};
+    cs.forEach(function (c) {
+      Object.keys(c.s.byCat).forEach(function (k) { catTotal[k] = (catTotal[k] || 0) + c.s.byCat[k]; });
+    });
+    var cats = topEntries(catTotal, 1e9).map(function (e) { return e[0]; });
+    var shown = cats.slice(0, 8), rest = cats.slice(8);
+    var pc = card('Product category mix', 'share of each person’s own sales');
+    if (!cats.length) {
+      pc.body.appendChild(el('p', 'card-note', 'No secondary sales to break down.'));
+    } else {
+      var crow = function (label, keys) {
+        return [label].concat(cs.map(function (c) {
+          var v = keys.reduce(function (a, k) { return a + (c.s.byCat[k] || 0); }, 0);
+          return v ? money(v) + ' · ' + pctOf(v, c.s.salesValue) : '—';
+        }));
+      };
+      var crows = shown.map(function (k) { return crow(k, [k]); });
+      if (rest.length) crows.push(crow('Other categories (' + rest.length + ')', rest));
+      pc.body.appendChild(table(['Category'].concat(names), crows, 1));
+    }
+    host.appendChild(pc.root);
+
+    // customer base
+    var seen = {};
+    cs.forEach(function (c) { Object.keys(c.billed).forEach(function (k) { seen[k] = (seen[k] || 0) + 1; }); });
+    var ub = card('Customer base', periodLabel());
+    ub.body.appendChild(table(['Measure'].concat(names), [
+      ['Outlets billed'].concat(cs.map(function (c) { return intFmt(c.outletsBilled); })),
+      ['Largest customer'].concat(cs.map(function (c) {
+        return c.topBuyer ? c.topBuyer[0] + ' · ' + pctOf(c.topBuyer[1], c.s.salesValue) : '—';
+      })),
+      ['Top 5 customers’ share'].concat(cs.map(function (c) {
+        return c.s.salesValue > 0 ? pctOf(c.top5, c.s.salesValue) : '—';
+      })),
+      ['Outlets also billed by another person here'].concat(cs.map(function (c) {
+        return intFmt(Object.keys(c.billed).filter(function (k) { return seen[k] > 1; }).length);
+      }))
+    ], 1));
+    host.appendChild(ub.root);
+
+    // top items, one column each, on one scale so bar lengths compare
+    var ic = card('Top items', 'five largest by value for each person');
+    var cols = el('div', 'cmp-cols');
+    var tops = cs.map(function (c) {
+      var vals = {};
+      Object.keys(c.s.byItem).forEach(function (k) { vals[k] = c.s.byItem[k].value; });
+      return topEntries(vals, 5);
+    });
+    var imax = Math.max.apply(null, tops.map(function (t) { return t.length ? Math.abs(t[0][1]) : 0; })) || 1;
+    cs.forEach(function (c, i) {
+      var col = el('div', 'cmp-col');
+      var h = el('div', 'cmp-col-head');
+      h.appendChild(swatch(c.slot));
+      h.appendChild(document.createTextNode(c.name));
+      col.appendChild(h);
+      if (!tops[i].length) {
+        col.appendChild(el('p', 'card-note', 'No secondary sales recorded.'));
+      } else {
+        var b = el('div', 'bars bars-fit');
+        tops[i].forEach(function (t) {
+          b.appendChild(barRow(t[0], t[1], imax, 'var(--cmp-' + c.slot + ')',
+            c.name + ' · ' + t[0] + ' · ' + money(t[1]) + ' · ' + pctOf(t[1], c.s.salesValue) + ' of their sales'));
+        });
+        col.appendChild(b);
+      }
+      cols.appendChild(col);
+    });
+    ic.body.appendChild(cols);
+    host.appendChild(ic.root);
+
+    host.appendChild(yearCard(cs));
+  }
+
+  // ---- the picker card: chosen people as chips, a search box to add more
+  function cmpSave() {
+    try {
+      localStorage.setItem(CMP_STORE_KEY, JSON.stringify(cmpPicked.map(function (p) { return p.r.name; })));
+    } catch (e) { /* ignore */ }
+  }
+  function cmpAdd(r) {
+    if (cmpPicked.length >= CMP_MAX || cmpPicked.some(function (p) { return p.r === r; })) return;
+    var slot = 1;
+    while (cmpPicked.some(function (p) { return p.slot === slot; })) slot++;   // lowest free colour
+    cmpPicked.push({ r: r, slot: slot });
+    cmpSave();
+    cmpRefresh();
+  }
+  function cmpRemove(r) {
+    cmpPicked = cmpPicked.filter(function (p) { return p.r !== r; });
+    cmpSave();
+    cmpRefresh();
+  }
+
+  function cmpOpenList(q) {
+    var u = cmpUi;
+    q = (q || '').trim().toLowerCase();
+    cmpFiltered = roster.filter(function (r) {
+      return r.name.toLowerCase().indexOf(q) !== -1 &&
+             !cmpPicked.some(function (p) { return p.r === r; });
+    });
+    u.list.textContent = '';
+    if (!cmpFiltered.length) {
+      u.list.appendChild(el('div', 'opt-empty', q ? 'No one matches “' + q + '”' : 'No one else to add'));
+    } else {
+      cmpFiltered.forEach(function (r, i) {
+        var o = el('div', 'opt' + (i === cmpCursor ? ' active' : ''));
+        o.setAttribute('role', 'option');
+        var n = el('div', 'opt-name');
+        if (q) {
+          var ix = r.name.toLowerCase().indexOf(q);
+          n.innerHTML = esc(r.name.slice(0, ix)) + '<mark>' +
+            esc(r.name.slice(ix, ix + q.length)) + '</mark>' + esc(r.name.slice(ix + q.length));
+        } else {
+          n.textContent = r.name;
+        }
+        o.appendChild(n);
+        o.appendChild(el('div', 'opt-val' + (r.salesValue ? ' num' : ''),
+          r.salesValue ? compact(r.salesValue) + ' · ' + plural(r.visits, 'visit')
+                       : r.visits ? plural(r.visits, 'visit') : 'no activity'));
+        o.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+          u.input.value = '';
+          cmpCloseList();
+          cmpAdd(r);
+        });
+        u.list.appendChild(o);
+      });
+    }
+    u.list.hidden = false;
+    u.input.setAttribute('aria-expanded', 'true');
+  }
+  function cmpCloseList() {
+    cmpUi.list.hidden = true;
+    cmpUi.input.setAttribute('aria-expanded', 'false');
+    cmpCursor = -1;
+  }
+
+  function buildCmpPicker(host) {
+    var c = card('Compare salespeople', 'up to ' + CMP_MAX + ' people · ' + periodLabel());
+    c.root.classList.add('cmp-pickcard');
+    var chosen = el('div', 'cmp-chosen');
+    c.body.appendChild(chosen);
+    var u = { root: c.root, chosen: chosen };
+
+    if (roster.length < 2) {
+      var box = el('div', 'notice');
+      box.innerHTML = '<strong>Nobody to compare with.</strong> You can see only your own figures here. ' +
+        'Managers can compare the people in their team.';
+      c.body.appendChild(box);
+      host.appendChild(c.root);
+      return u;
+    }
+
+    var tools = el('div', 'cmp-tools');
+    var wrap = el('div', 'picker cmp-picker');
+    wrap.innerHTML = '<svg class="picker-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="9" r="5.5"></circle>' +
+      '<path d="M13.5 13.5 17.5 17.5" stroke-linecap="round"></path></svg>';
+    var input = el('input', 'picker-input');
+    input.type = 'text';
+    input.id = 'cmp-input';
+    input.autocomplete = 'off';
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-expanded', 'false');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-controls', 'cmp-list');
+    input.setAttribute('aria-label', 'Add a person to compare');
+    var lst = el('div', 'picker-list');
+    lst.id = 'cmp-list';
+    lst.setAttribute('role', 'listbox');
+    lst.hidden = true;
+    wrap.appendChild(input);
+    wrap.appendChild(lst);
+    tools.appendChild(wrap);
+    var print = el('button', 'team-more cmp-print', 'Print or save as PDF');
+    print.type = 'button';
+    print.addEventListener('click', function () { window.print(); });
+    tools.appendChild(print);
+    c.body.appendChild(tools);
+    var hint = el('p', 'card-note cmp-hint');
+    c.body.appendChild(hint);
+    host.appendChild(c.root);
+
+    u.input = input; u.list = lst; u.print = print; u.hint = hint;
+    cmpUi = u;
+    input.addEventListener('focus', function () { cmpOpenList(input.value); });
+    input.addEventListener('input', function () { cmpCursor = -1; cmpOpenList(input.value); });
+    input.addEventListener('blur', function () { setTimeout(cmpCloseList, 120); });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (lst.hidden) cmpOpenList(input.value);
+        if (!cmpFiltered.length) return;
+        cmpCursor += (e.key === 'ArrowDown' ? 1 : -1);
+        if (cmpCursor < 0) cmpCursor = cmpFiltered.length - 1;
+        if (cmpCursor >= cmpFiltered.length) cmpCursor = 0;
+        cmpOpenList(input.value);
+        var a = lst.children[cmpCursor];
+        if (a && a.scrollIntoView) a.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        if (!lst.hidden && cmpFiltered.length) {
+          e.preventDefault();
+          var r = cmpFiltered[cmpCursor >= 0 ? cmpCursor : 0];
+          input.value = '';
+          cmpCloseList();
+          cmpAdd(r);
+        }
+      } else if (e.key === 'Escape') {
+        cmpCloseList();
+      }
+    });
+    return u;
+  }
+
+  function cmpRefresh() {
+    var host = document.getElementById('sec-compare');
+    if (!cmpUi) cmpUi = buildCmpPicker(host);
+    var u = cmpUi;
+    // everything after the picker card is the report, rebuilt on each change
+    while (u.root.nextSibling) host.removeChild(u.root.nextSibling);
+    cmpSeq++;
+    host.setAttribute('data-names', cmpPicked.length >= 2
+      ? cmpPicked.map(function (p) { return p.r.name; }).join(' vs ') : '');
+
+    u.chosen.textContent = '';
+    if (!u.input) return;                    // nobody to compare with: the notice says so
+    cmpPicked.forEach(function (p) {
+      var chip = el('span', 'cmp-chip');
+      chip.appendChild(swatch(p.slot));
+      chip.appendChild(el('span', null, p.r.name));
+      var x = el('button');
+      x.type = 'button';
+      x.setAttribute('aria-label', 'Remove ' + p.r.name);
+      x.innerHTML = '<svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" ' +
+        'stroke-width="2" stroke-linecap="round"><path d="M5.5 5.5l9 9m0-9l-9 9"></path></svg>';
+      x.addEventListener('click', function () { cmpRemove(p.r); });
+      chip.appendChild(x);
+      u.chosen.appendChild(chip);
+    });
+
+    var full = cmpPicked.length >= CMP_MAX;
+    u.input.disabled = full;
+    u.input.placeholder = full ? 'Remove someone to add another'
+      : cmpPicked.length ? 'Add another person…' : 'Search a name to add…';
+    u.print.hidden = cmpPicked.length < 2;
+    u.hint.textContent = !cmpPicked.length
+      ? 'Pick two or three people to see them side by side. Only people you can see on this site are listed.'
+      : cmpPicked.length === 1
+        ? 'Add one or two more people to compare with ' + cmpPicked[0].r.name + '.'
+        : 'Figures are for ' + periodLabel() + ', plus the year so far at the bottom. ' +
+          'Change the month at the top to compare another month.';
+    if (cmpPicked.length >= 2) renderCmpReport(host, cmpPicked.map(cmpStats));
+  }
+
+  // Built the first time the tab opens. Restores the last comparison, or
+  // starts from the person already open in the other tabs.
+  var cmpBooted = false;
+  function ensureCompare() {
+    if (cmpBooted) return;
+    cmpBooted = true;
+    var names = [];
+    try { names = JSON.parse(localStorage.getItem(CMP_STORE_KEY) || '[]') || []; } catch (e) { names = []; }
+    names.forEach(function (n) {
+      var r = roster.filter(function (x) { return x.name === n; })[0];
+      if (r && cmpPicked.length < CMP_MAX && cmpPicked.every(function (p) { return p.r !== r; })) {
+        cmpPicked.push({ r: r, slot: cmpPicked.length + 1 });
+      }
+    });
+    if (!cmpPicked.length && current && !current.team) cmpPicked.push({ r: current, slot: 1 });
+    cmpRefresh();
+  }
+
   // ---------------------------------------------------------------- picker
   var input = document.getElementById('sec-picker');
   var list = document.getElementById('sec-picker-list');
   var clearBtn = document.getElementById('sec-picker-clear');
   var current = null, cursor = -1, filtered = [];
   var view = 'overview';
-  var SEC_VIEWS = ['overview', 'activity', 'ask'];
+  var SEC_VIEWS = ['overview', 'activity', 'ask', 'compare'];
+
+  // The person tabs need someone picked in the header; Compare has its own
+  // picker, so it shows whether or not anyone is.
+  function showViews() {
+    var on = !!current || view === 'compare';
+    document.getElementById('sec-empty').hidden = on;
+    document.getElementById('sec-views').hidden = !on;
+    SEC_VIEWS.forEach(function (v) {
+      document.getElementById('sec-' + v).hidden = (v !== view);
+    });
+  }
 
   function openList(q) {
     q = (q || '').trim().toLowerCase();
@@ -2036,8 +2897,7 @@
     current = null;
     input.value = '';
     clearBtn.hidden = true;
-    document.getElementById('sec-views').hidden = true;
-    document.getElementById('sec-empty').hidden = false;
+    showViews();
     setDownload();
     try { localStorage.removeItem('nutaste-sec-person'); } catch (e) { /* ignore */ }
     input.focus();
@@ -2074,9 +2934,8 @@
       document.querySelectorAll('.sec-tab').forEach(function (o) {
         o.setAttribute('aria-selected', String(o === t));
       });
-      SEC_VIEWS.forEach(function (v) {
-        document.getElementById('sec-' + v).hidden = (v !== view);
-      });
+      if (view === 'compare') ensureCompare();
+      showViews();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   });
@@ -2084,14 +2943,10 @@
   function render() {
     if (!current) return;
     var s = summarise(current.d);
-    document.getElementById('sec-empty').hidden = true;
-    document.getElementById('sec-views').hidden = false;
     renderOverview(current, s);
     renderActivity(current, s);
     renderSecAsk(current);
-    SEC_VIEWS.forEach(function (v) {
-      document.getElementById('sec-' + v).hidden = (v !== view);
-    });
+    showViews();
   }
 
   // ---------------------------------------------------------- month picker

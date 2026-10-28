@@ -106,7 +106,8 @@
              ask:      'Ask a question about your book in plain English.' },
       sec: { overview: 'Visits, demos, leads and secondary sales for the month.',
              activity: 'Every visit and activity, day by day.',
-             ask:      'Ask a question about your month in plain English.' }
+             ask:      'Ask a question about your month in plain English.',
+             compare:  'Two or three people side by side: sales, reach, activity and cost.' }
     };
     var lastMod = null, lastName = null;
 
@@ -122,6 +123,12 @@
       var views = document.getElementById(mod === 'sec' ? 'sec-views' : 'views');
       var input = document.getElementById(mod === 'sec' ? 'sec-picker' : 'picker');
       var name = views && !views.hidden && input ? input.value.trim() : '';
+      // Compare names the people being compared, not the one picked in the header.
+      var comparing = mod === 'sec' && view === 'compare';
+      if (comparing) {
+        var cmpHost = document.getElementById('sec-compare');
+        name = cmpHost ? cmpHost.getAttribute('data-names') || '' : '';
+      }
 
       modLabel.textContent = mod === 'sec' ? 'Secondary Sales' : 'Receivables';
       if (mod === 'sec') {
@@ -151,7 +158,8 @@
         hero.classList.toggle('has-ctx', !!name);
       }
 
-      subEl.textContent = name ? (SUBS[mod][view] || SUBS[mod].overview)
+      subEl.textContent = comparing ? SUBS.sec.compare
+        : name ? (SUBS[mod][view] || SUBS[mod].overview)
         : 'Search your name above to open your ' + (mod === 'sec' ? 'month.' : 'book.');
 
       // Greet the signed-in user, not the book being viewed.
