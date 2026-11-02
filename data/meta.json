@@ -4,13 +4,13 @@
     "source": "Business Central API, scheduled (ageing as at 2026-11-02)"
   },
   "sec": {
-    "updated": "2026-10-26 11:00:46",
+    "updated": "2026-11-02 11:00:40",
     "source": "SharePoint auto-refresh, scheduled (2026-10)"
   },
   "secRefresh": {
-    "lastAttempt": "2026-10-26T11:00:46+05:30",
+    "lastAttempt": "2026-11-02T11:00:40+05:30",
     "ok": true,
-    "message": "Imported 10 months (2026-01 to 2026-10) from SharePoint (25.3 MB); default view 2026-10",
+    "message": "Imported 10 months (2026-01 to 2026-10) from SharePoint (26.1 MB); default view 2026-10",
     "trigger": "scheduled"
   },
   "arRefresh": {
